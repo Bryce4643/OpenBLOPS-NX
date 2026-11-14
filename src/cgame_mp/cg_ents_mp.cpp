@@ -5151,8 +5151,12 @@ void __cdecl CG_mg42(int localClientNum, centity_s *cent)
             {
                 CG_mg42_PreControllers(obj, cent);
                 CG_mg42_OverheatUpdate(localClientNum, obj, cent);
+                // Retail SP 0x00777027 hides the scoped turret in use without a third-person
+                // test. Levels like Khe Sanh render the player for its shadow (TP_FOR_SHADOW).
                 if ( !CG_PlayerUsingScopedTurret(localClientNum)
+#ifndef KISAK_SP
                     || CG_GetLocalClientGlobals(localClientNum)->renderingThirdPerson
+#endif
                     || (LocalClientGlobals = CG_GetLocalClientGlobals(localClientNum),
                             p_predictedPlayerState = &LocalClientGlobals->predictedPlayerState,
                             LocalClientGlobals->predictedPlayerState.viewlocked_entNum != ns->number) )

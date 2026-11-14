@@ -3467,6 +3467,49 @@ void __cdecl CG_CalcCubemapViewValues(cg_s *cgameGlob)
     }
 }
 
+#ifdef KISAK_SP
+// Retail SP 0x007923F0: the view sits at the turret's tag_player, moved along the
+// view axes by the weapon's hip-to-ADS offset (vProneOfs to vDuckedOfs). Scoped
+// turrets such as the Khe Sanh TOW put the sight there. No third-person or sway terms.
+void __cdecl CG_CalcTurretViewValues(int localClientNum)
+{
+    cg_s *cgameGlob = CG_GetLocalClientGlobals(localClientNum);
+    const playerState_s *ps = &cgameGlob->predictedPlayerState;
+    if ( (ps->eFlags & 0x300) == 0 )
+        return;
+    iassert(ps->viewlocked);
+    iassert(ps->viewlocked_entNum != ENTITYNUM_NONE);
+    const centity_s *cent = CG_GetEntity(localClientNum, ps->viewlocked_entNum);
+    if ( (cent->clientFlags & 2) == 0 )
+        return;
+    DObj *obj = Com_GetClientDObj(cent->nextState.number, localClientNum);
+    if ( !obj )
+        return;
+
+    float viewOrg[3];
+    if ( !CG_DObjGetWorldTagPos(&cent->pose, obj, scr_const.tag_player, viewOrg) )
+        Com_Error(ERR_DROP, "Turret has no bone: tag_player");
+    const int weapon = CG_GetPlayerWeapon(ps, localClientNum);
+    const WeaponDef *weapDef = BG_GetWeaponDef(weapon);
+    if ( weapDef && weapon )
+    {
+        float viewOfs[3];
+        float axis[3][3];
+        Vec3Lerp(weapDef->vProneOfs, weapDef->vDuckedOfs, ps->fWeaponPosFrac, viewOfs);
+        AnglesToAxis(ps->viewangles, axis);
+        for ( int i = 0; i < 3; ++i )
+            viewOrg[i] += viewOfs[0] * axis[0][i] + viewOfs[1] * axis[1][i] + viewOfs[2] * axis[2][i];
+    }
+    cgameGlob->refdef.vieworg[0] = viewOrg[0];
+    cgameGlob->refdef.vieworg[1] = viewOrg[1];
+    cgameGlob->refdef.vieworg[2] = viewOrg[2];
+    if ( ps->viewlocked == PLAYERVIEWLOCK_WEAPONJITTER && !cl_paused->current.integer )
+    {
+        cgameGlob->refdefViewAngles[0] += crandom() * weapDef->vertViewJitter;
+        cgameGlob->refdefViewAngles[1] += crandom() * weapDef->horizViewJitter;
+    }
+}
+#else
 int swayTime[MAX_LOCAL_CLIENTS];
 float swayViewAngles_1[MAX_LOCAL_CLIENTS][3];
 float swayOffset_1[MAX_LOCAL_CLIENTS][3];
@@ -3560,6 +3603,7 @@ void __cdecl CG_CalcTurretViewValues(int localClientNum)
         }
     }
 }
+#endif
 
 void __cdecl CG_UpdateKillCamEntity(KillCamEntityType killCamEntityType, int localClientNum)
 {
