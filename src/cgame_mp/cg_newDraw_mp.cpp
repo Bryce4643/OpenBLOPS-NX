@@ -703,6 +703,11 @@ void __cdecl CG_OwnerDraw(
                 if ( Dvar_GetBool("compassGridEnabled") )
                     CG_CompassDrawPlayerMap(localClientNum, COMPASS_TYPE_PARTIAL, &parentRect, &rect, material, color, 1);
                 break;
+#ifdef KISAK_SP
+            case 322:
+                CG_DrawObjectiveIndicators_SP(localClientNum);
+                break;
+#endif
             case 324:
                 CG_CompassDrawScrambler(localClientNum, COMPASS_TYPE_PARTIAL, &parentRect, &rect, material, color);
                 break;
