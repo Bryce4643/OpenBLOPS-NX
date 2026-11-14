@@ -4403,9 +4403,12 @@ void __cdecl GetCeilingHeight(cg_s *cgameGlob)
 
 void __cdecl CG_UpdateViewOffset(int localClientNum)
 {
-    cg_s *cgameGlob; // [esp+8h] [ebp-4h]
-
-    cgameGlob = CG_GetLocalClientGlobals(localClientNum);
+    // Retail SP (0x005bf980) only resets the skeleton cache. The view origin
+    // keeps last frame's camera, which R_SetLodOrigin picks model LODs from;
+    // moving it to the player's eye picks them from the wrong place under a
+    // tag camera, like the Flashpoint binoculars.
+#ifndef KISAK_SP
+    cg_s *cgameGlob = CG_GetLocalClientGlobals(localClientNum);
     if ( CG_KillCamEntityEnabled(localClientNum) )
     {
         CG_UpdateKillCamEntityViewOffset(localClientNum);
@@ -4423,6 +4426,7 @@ void __cdecl CG_UpdateViewOffset(int localClientNum)
             cgameGlob->refdef.vieworg);
         cgameGlob->refdef.vieworg[2] = cgameGlob->refdef.vieworg[2] + cgameGlob->nextSnap->ps.viewHeightCurrent;
     }
+#endif
     CL_ResetSkeletonCache(localClientNum);
 }
 
