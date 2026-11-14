@@ -2842,7 +2842,11 @@ void __cdecl R_RegisterDvars()
     r_sky_intensity_useDebugValues = _Dvar_RegisterBool(
                                                                          "r_sky_intensity_useDebugValues",
                                                                          0,
+#ifdef KISAK_SP
+                                                                         0x5000u,
+#else
                                                                          0x80u,
+#endif
                                                                          "use dvar values for sky intensity");
     r_sky_intensity_angle0 = _Dvar_RegisterFloat(
                                                          "r_sky_intensity_angle0",
@@ -2863,7 +2867,11 @@ void __cdecl R_RegisterDvars()
                                                             1.0,
                                                             0.0,
                                                             10.0,
+#ifdef KISAK_SP
+                                                            0x5000u,
+#else
                                                             0x80u,
+#endif
                                                             "angle0 of sky intensity");
     r_sky_intensity_factor1 = _Dvar_RegisterFloat(
                                                             "r_sky_intensity_factor1",

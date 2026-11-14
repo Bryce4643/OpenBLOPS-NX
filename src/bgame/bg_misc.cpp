@@ -1110,7 +1110,11 @@ void __cdecl BG_RegisterDvars()
     player_debugHealth = _Dvar_RegisterBool("player_debugHealth", 0, 0x180u, "Turn on debugging info for player health");
 #endif
     player_debugSprint = _Dvar_RegisterBool("player_debugSprint", 0, 0x80u, "Turn on debugging info for player sprint");
+#ifdef KISAK_SP
+    player_sustainAmmo = _Dvar_RegisterBool("player_sustainAmmo", 0, 0x1080u, "Firing weapon will not decrease clip ammo.");
+#else
     player_sustainAmmo = _Dvar_RegisterBool("player_sustainAmmo", 0, 0x80u, "Firing weapon will not decrease clip ammo.");
+#endif
     player_clipSizeMultiplier = _Dvar_RegisterFloat(
                                                                 "player_clipSizeMultiplier",
                                                                 1.0,
@@ -1190,7 +1194,11 @@ void __cdecl BG_RegisterDvars()
                                                          60.0,
                                                          0.0,
                                                          50000.0,
+#ifdef KISAK_SP
+                                                         0x3080u,
+#else
                                                          0x180u,
+#endif
                                                          "The speed threshold before a player is considered to be running backwards");
     player_moveThreshhold = _Dvar_RegisterFloat(
                                                         "player_moveThreshhold",

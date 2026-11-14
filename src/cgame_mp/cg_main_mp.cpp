@@ -692,6 +692,11 @@ void __cdecl CG_RegisterDvars()
                                                         1,
                                                         0x81u,
                                                         "Draw the name of an enemy under the crosshair");
+#ifdef KISAK_SP
+    // Read by the HUD menus; level scripts set them with SetSavedDvar.
+    _Dvar_RegisterBool("cg_hideWeaponHeat", 0, 0x1000u, "");
+    _Dvar_RegisterBool("cg_drawWeaponHeatVertical", 0, 0x1000u, "");
+#endif
     cg_drawCrosshairNamesPosX = _Dvar_RegisterInt(
                                                                 "cg_drawCrosshairNamesPosX",
                                                                 300,
