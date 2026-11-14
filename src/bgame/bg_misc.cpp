@@ -1264,7 +1264,11 @@ void __cdecl BG_RegisterDvars()
                                                             "Controls the friction during slide.");
     player_sliding_wishspeed = _Dvar_RegisterFloat(
                                                              "player_sliding_wishspeed",
+#ifdef KISAK_SP
+                                                             450.0,
+#else
                                                              4000.0,
+#endif
                                                              0.0,
                                                              10000.0,
                                                              0x4080u,
