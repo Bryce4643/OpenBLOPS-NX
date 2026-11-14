@@ -1363,19 +1363,24 @@ void __cdecl Com_SetRecommended(int localClientNum, int restart)
     Com_EndParseSession();
 #ifdef KISAK_NX
     // The Tegra X1 matches no GPU row, so the catch-all "*" row applies -- the
-    // top PC tier, with 4x MSAA and shadows. Keep that quality, but these four
-    // are Switch defaults (the same as the dvar registrations): MSAA is heavy
-    // on the Tegra's bandwidth, v-sync made any frame over 16.7 ms wait for the
+    // top PC tier, with 4x MSAA and shadows. Keep that quality, but these are
+    // Switch defaults (the same as the dvar registrations): MSAA is heavy on
+    // the Tegra's bandwidth, v-sync made any frame over 16.7 ms wait for the
     // next refresh, shadow maps are whole extra scene passes, and bullet impact
-    // marks are off by choice. Runs on first
-    // start and from the options menu's "set recommended"; a choice made in the
-    // options afterwards is saved in config.cfg and stands.
+    // marks are off by choice. configure_mp.cfg sets texture detail automatic,
+    // which picks Extra from the Switch's memory; use High instead. Runs on
+    // first start and from the options menu's "set recommended"; a choice made
+    // in the options afterwards is saved in config.cfg and stands.
     Dvar_SetIntByName("r_aaSamples", 1);
     Dvar_SetBoolByName("r_vsync", false);
     Dvar_SetBoolByName("sm_enable", false);
     Dvar_SetBoolByName("fx_marks", false);
+    Dvar_SetBoolByName("r_picmip_manual", true);
+    Dvar_SetIntByName("r_picmip", 1);
+    Dvar_SetIntByName("r_picmip_bump", 1);
+    Dvar_SetIntByName("r_picmip_spec", 1);
     Com_Printf(16, "[nx] Switch defaults over the recommended settings: anti-aliasing off, v-sync off, shadows off,"
-                   " bullet impacts off\n");
+                   " bullet impacts off, textures high\n");
 #endif
     checksum = Com_ConfigureChecksum(csv, filesize);
     FS_FreeFile(csv);
@@ -1665,6 +1670,35 @@ void __cdecl Com_CheckSetRecommended(int localClientNum)
     if ( Sys_HasInfoChanged() )
         Com_SetRecommended(localClientNum, 0);
 }
+
+#ifdef KISAK_NX
+// A config.cfg saved by an earlier release keeps that release's defaults. On
+// the first boot after an update, bring it up to each newer revision of the
+// Switch defaults once; nx_settingsRevision records the last one applied, so
+// a choice made in the options afterwards stands.
+static void Com_NX_ApplySettingsRevisions()
+{
+    const int latestRevision = 1;
+    const dvar_s *nx_settingsRevision = _Dvar_RegisterInt(
+        "nx_settingsRevision", 0, 0, 1000, 1u, "Last revision of the Switch default settings applied to config.cfg");
+    const int appliedRevision = nx_settingsRevision->current.integer;
+    if ( appliedRevision >= latestRevision )
+        return;
+
+    if ( appliedRevision < 1 )
+    {
+        // 60 fps cap and High textures
+        Dvar_SetIntByName("com_maxfps", 60);
+        Dvar_SetBoolByName("r_picmip_manual", true);
+        Dvar_SetIntByName("r_picmip", 1);
+        Dvar_SetIntByName("r_picmip_bump", 1);
+        Dvar_SetIntByName("r_picmip_spec", 1);
+    }
+
+    Dvar_SetInt((dvar_s *)nx_settingsRevision, latestRevision);
+    Com_Printf(16, "[nx] Updated the saved settings to Switch defaults revision %i\n", latestRevision);
+}
+#endif
 
 bool __cdecl Com_HasConfigureFileChanged()
 {
@@ -2206,6 +2240,9 @@ void __cdecl Com_Init_Try_Block_Function(char *commandLine)
     R_StreamSetInitData(Com_CalculateStreamBuffer());
     com_recommendedSet = _Dvar_RegisterBool("com_recommendedSet", 0, 1u, "Use recommended settings");
     Com_CheckSetRecommended(0);
+#ifdef KISAK_NX
+    Com_NX_ApplySettingsRevisions();
+#endif
     Com_StartupVariable(0);
 
     if ( !useFastFile->current.enabled )
@@ -2552,7 +2589,11 @@ void Com_InitDvars()
     dedicated = _Dvar_RegisterEnum("dedicated", g_dedicatedEnumNames, 2, 0x40u, "Dedicated Server");
     Dvar_SetInt((dvar_s *)dedicated, 2);
 #endif
+#ifdef KISAK_NX
+    com_maxfps = _Dvar_RegisterInt("com_maxfps", 60, 0, 1000, 1u, "Cap frames per second");
+#else
     com_maxfps = _Dvar_RegisterInt("com_maxfps", 85, 0, 1000, 1u, "Cap frames per second");
+#endif
 #ifdef KISAK_NX
     nx_fpsLimit = _Dvar_RegisterInt("nx_fpsLimit", -1, -1, 1000, 1u, "Switch frame rate limit (-1 uses com_maxfps, 0 is unlimited)");
     nx_splog = _Dvar_RegisterBool("nx_splog", 0, 0, "Log the SP bring-up traces (lines starting \"SP \")");
