@@ -4340,7 +4340,6 @@ void __cdecl Item_TextField_BeginEdit(int localClientNum, int contextIndex, item
 }
 
 static void UI_NX_AddAimAssistOption(menuDef_t *menu);
-static void UI_AddPerformanceOverlayOption(menuDef_t *menu);
 #ifdef KISAK_NX
 static void UI_NX_AddFrameRateOption(menuDef_t *menu);
 #endif
@@ -4351,7 +4350,6 @@ void __cdecl Menus_Open(int localClientNum, UiContext *dc, menuDef_t *menu)
     // "Redundant asset"), which drops the rows UI_AddMenu added. They are put
     // back when the menu opens (a no-op when they are there).
     UI_NX_AddAimAssistOption(menu);
-    UI_AddPerformanceOverlayOption(menu);
 #ifdef KISAK_NX
     UI_NX_AddFrameRateOption(menu);
 #endif
@@ -11626,6 +11624,7 @@ static void UI_NX_AddAimAssistOption(menuDef_t *menu)
                             invert->window.rect.vertAlign);
 }
 
+#ifdef KISAK_NX
 static bool UI_AddGraphicsChoiceRow(menuDef_t *menu, const itemDef_s *after, float rowY,
     const char *name, const char *highlightName, const char *rowName, const char *labelText,
     const char *dvar, multiDef_s *values)
@@ -11692,33 +11691,6 @@ static bool UI_AddGraphicsChoiceRow(menuDef_t *menu, const itemDef_s *after, flo
     return true;
 }
 
-static void UI_AddPerformanceOverlayOption(menuDef_t *menu)
-{
-    if ( !menu || !menu->window.name || I_stricmp(menu->window.name, "options_graphics") )
-        return;
-    _Dvar_RegisterBool("cg_performanceOverlay", false, 1u /* archive */, "Show FPS and performance statistics");
-    if ( UI_NX_FindItem(menu, "options_graphics_performance", nullptr) )
-        return;
-    const itemDef_s *last = UI_NX_FindItemByDvar(menu, "cg_fov_default");
-    if ( !last ) return;
-    static multiDef_s values = { { "@MENU_OFF", "@MENU_ON" }, {}, { 0.0f, 1.0f }, 2, 0, 0 };
-    const float rowY = last->window.rect.y + 19.0f;
-    if ( !UI_AddGraphicsChoiceRow(menu, last, rowY, "options_graphics_performance",
-            "options_graphics_performance_hl", "options_graphics_performance_row",
-            "PERFORMANCE OVERLAY", "cg_performanceOverlay", &values) )
-        return;
-    for ( int i = 0; i < menu->itemCount; ++i )
-    {
-        itemDef_s *item = menu->items[i];
-        if ( !Item_IsTextDefType(item) || !item->typeData.textDef ) continue;
-        const char *text = item->typeData.textDef->text;
-        if ( !text || (I_stricmp(text, "@PLATFORM_BACK") && I_stricmp(text, "@MENU_APPLY")) ) continue;
-        const float dy = rowY + last->window.rect.h + 5.0f - item->window.rect.y;
-        if ( dy > 0 ) UI_NX_MoveItem(item, dy);
-    }
-}
-
-#ifdef KISAK_NX
 struct FrameRateOptionText
 {
     const char *language;
@@ -11800,7 +11772,6 @@ void __cdecl UI_AddMenu(int localClientNum, UiContext *dc, menuDef_t *menu, int 
     int i; // [esp+8h] [ebp-8h]
 
     UI_NX_AddAimAssistOption(menu);
-    UI_AddPerformanceOverlayOption(menu);
 #ifdef KISAK_NX
     UI_NX_AddFrameRateOption(menu);
 #endif

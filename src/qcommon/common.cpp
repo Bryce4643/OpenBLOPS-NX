@@ -1678,7 +1678,7 @@ void __cdecl Com_CheckSetRecommended(int localClientNum)
 // a choice made in the options afterwards stands.
 static void Com_NX_ApplySettingsRevisions()
 {
-    const int latestRevision = 1;
+    const int latestRevision = 2;
     const dvar_s *nx_settingsRevision = _Dvar_RegisterInt(
         "nx_settingsRevision", 0, 0, 1000, 1u, "Last revision of the Switch default settings applied to config.cfg");
     const int appliedRevision = nx_settingsRevision->current.integer;
@@ -1693,6 +1693,12 @@ static void Com_NX_ApplySettingsRevisions()
         Dvar_SetIntByName("r_picmip", 1);
         Dvar_SetIntByName("r_picmip_bump", 1);
         Dvar_SetIntByName("r_picmip_spec", 1);
+    }
+    if ( appliedRevision < 2 )
+    {
+        // Earlier releases saved cg_drawFPS "Simple" and hid it behind an
+        // options toggle; the counter now follows cg_drawFPS as in retail.
+        Dvar_SetIntByName("cg_drawFPS", 0);
     }
 
     Dvar_SetInt((dvar_s *)nx_settingsRevision, latestRevision);
