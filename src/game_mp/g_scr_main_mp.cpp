@@ -3983,11 +3983,27 @@ void __cdecl ScrCmd_UseBy(scr_entref_t entref)
 
     pEnt = GetEntity(entref);
     pOther = Scr_GetEntity(0);
+#ifdef KISAK_SP
+    // Retail SP 0x007F43A0: using the turret a player is on makes the player dismount.
+    if ( pOther->active && pOther->client && pOther->client->ps.viewlocked_entNum == pEnt->s.number )
+    {
+        pOther->active = (pOther->client->ps.eFlags & 0x300) != 0 ? 2 : 0;
+        return;
+    }
+#endif
     Scr_AddEntity(pOther, SCRIPTINSTANCE_SERVER);
     Scr_Notify(pEnt, scr_const.trigger, 1u);
     use = entityHandlers[pEnt->handler].use;
     if ( use )
+    {
+#ifdef KISAK_SP
+        pEnt->scriptUse_SP = 1;
         use(pEnt, pOther, pOther);
+        pEnt->scriptUse_SP = 0;
+#else
+        use(pEnt, pOther, pOther);
+#endif
+    }
 }
 
 void __cdecl ScrCmd_IsTouching(scr_entref_t entref)
