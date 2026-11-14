@@ -462,7 +462,7 @@ void    CG_Vehicle_PreControllers(
                 gunnerIndex = ps->vehiclePos - 1;
                 index = 0;
                 DObjGetBoneIndex(obja, *gunnerViewTags[gunnerIndex], &index, -1);
-                DObjGetBasePoseMatrix(obja, 0, &animMat);
+                DObjGetBasePoseMatrix(obja, index, &animMat);
                 QuatToAxis(animMat.quat, tagAxis);
                 AxisToAngles(tagAxis, tagAngles);
                 v163 = ps->viewangles[0] + tagAngles[0];
