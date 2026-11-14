@@ -357,6 +357,8 @@ const dvar_s *cg_objectiveIndicatorNearDist;
 const dvar_s *cg_objectiveIndicatorFarDist;
 const dvar_s *cg_objectiveIndicatorFarScale;
 const dvar_s *cg_objectiveIndicatorSize;
+const dvar_s *cg_objectiveListWrapCountStandard;
+const dvar_s *cg_objectiveListWrapCountWidescreen;
 #endif
 const dvar_s *cg_overheadIconSize;
 const dvar_s *cg_overheadRankSize;
@@ -1607,6 +1609,8 @@ void __cdecl CG_RegisterDvars()
     cg_objectiveIndicatorFarDist = _Dvar_RegisterFloat("cg_objectiveIndicatorFarDist", 512.0f, 0.0f, 3.4028235e38f, 0x1000u, "");
     cg_objectiveIndicatorFarScale = _Dvar_RegisterFloat("cg_objectiveIndicatorFarScale", 0.5f, 0.0f, 3.4028235e38f, 0x1000u, "");
     cg_objectiveIndicatorSize = _Dvar_RegisterFloat("cg_objectiveIndicatorSize", 0.8f, 0.0f, 100.0f, 0x1000u, "");
+    cg_objectiveListWrapCountStandard = _Dvar_RegisterInt("cg_objectiveListWrapCountStandard", 600, 100, 640, 0, "");
+    cg_objectiveListWrapCountWidescreen = _Dvar_RegisterInt("cg_objectiveListWrapCountWidescreen", 530, 100, 640, 0, "");
 #endif
     cg_playerHighlightTargetSize = _Dvar_RegisterFloat(
                                                                      "cg_playerHighlightTargetSize",

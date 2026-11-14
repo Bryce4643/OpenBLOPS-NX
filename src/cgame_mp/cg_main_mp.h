@@ -351,6 +351,8 @@ extern const dvar_s *cg_objectiveIndicatorNearDist;
 extern const dvar_s *cg_objectiveIndicatorFarDist;
 extern const dvar_s *cg_objectiveIndicatorFarScale;
 extern const dvar_s *cg_objectiveIndicatorSize;
+extern const dvar_s *cg_objectiveListWrapCountStandard;
+extern const dvar_s *cg_objectiveListWrapCountWidescreen;
 #endif
 extern const dvar_s *cg_overheadIconSize;
 extern const dvar_s *cg_overheadRankSize;
