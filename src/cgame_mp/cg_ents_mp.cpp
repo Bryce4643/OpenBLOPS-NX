@@ -2628,8 +2628,8 @@ void __cdecl CG_PrimaryLight(int localClientNum, centity_s *cent)
         + (nextLight.cosHalfFovOuter - currentLight.cosHalfFovOuter) * lightFraction;
     light->cosHalfFovInner = currentLight.cosHalfFovInner
         + (nextLight.cosHalfFovInner - currentLight.cosHalfFovInner) * lightFraction;
-    light->exponent = static_cast<int>(currentLight.colorAndExp[3]
-        + (nextLight.colorAndExp[3] - currentLight.colorAndExp[3]) * lightFraction);
+    light->exponent = static_cast<int>((nextLight.colorAndExp[3] - currentLight.colorAndExp[3]) * lightFraction)
+        + currentLight.colorAndExp[3];
     // Apply the existing quantization repair on every platform.
     // The inner cone travels in u.turret.heatVal, which the entity net fields
     // send as MSG_FIELD_0TO1_P2 -- quantized -- while the outer one is a full
