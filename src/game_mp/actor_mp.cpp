@@ -466,7 +466,7 @@ void __cdecl Scr_FreeFields(const actor_field_t *fields, unsigned __int8 *base)
 }
 
 #ifdef KISAK_SP
-const actor_field_t actorFields_0[14] =
+const actor_field_t actorFields_0[15] =
 #else
 const actor_field_t actorFields_0[10] =
 #endif
@@ -477,6 +477,7 @@ const actor_field_t actorFields_0[10] =
   { offsetof(actor_s, damageMod), { 2 }, AF_STRING },
   { offsetof(actor_s, weaponName), { 2 }, AF_STRING },
 #ifdef KISAK_SP
+  { offsetof(actor_s, name), { 2 }, AF_STRING },
   { offsetof(actor_s, primaryWeaponName), { 2 }, AF_STRING },
   { offsetof(actor_s, secondaryWeaponName), { 2 }, AF_STRING },
   { offsetof(actor_s, sidearmName), { 2 }, AF_STRING },
@@ -491,8 +492,6 @@ const actor_field_t actorFields_0[10] =
   { 0, { 0 }, AF_NONE }
 };
 
-#include <game/g_sp_crosshair.h>
-
 void __cdecl Scr_FreeActorFields(actor_s *pActor)
 {
 #ifdef KISAK_SP
@@ -503,9 +502,6 @@ void __cdecl Scr_FreeActorFields(actor_s *pActor)
     pActor->fixedNodeSafeVolume.setEnt(NULL);
 #endif
     Scr_FreeFields(actorFields_0, (unsigned __int8 *)pActor);
-#ifdef KISAK_SP
-    G_SPFreeActorName(pActor->ent);
-#endif
 }
 
 #ifdef KISAK_SP
