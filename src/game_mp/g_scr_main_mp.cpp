@@ -25658,10 +25658,28 @@ void (__cdecl *__cdecl BuiltIn_GetMethod(const char **pName, int *type))(scr_ent
 void __cdecl Scr_SetOrigin(gentity_s *ent, int)
 {
     float org[3]; // [esp+0h] [ebp-Ch] BYREF
-    int savedregs; // [esp+Ch] [ebp+0h] BYREF
 
+#ifdef KISAK_SP
+    // Retail SP 0x00530060: vehicles are teleported with their physics, so a
+    // script move of a driven boat sticks.
+    if ( ent->actor )
+        Scr_Error("cannot directly set the origin on AI.  Use the teleport command instead.\n", false);
+    Scr_GetVector(0, org, SCRIPTINSTANCE_SERVER);
+    if ( !std::isfinite(org[0]) || !std::isfinite(org[1]) || !std::isfinite(org[2]) )
+        Scr_Error("origin being set to NAN.", false);
+    BG_ClampOrigin(org, 18, 17, svs.mapCenter);
+    G_SetOrigin(ent, org);
+    if ( ent->scr_vehicle )
+    {
+        Vec3Copy(org, ent->scr_vehicle->phys.origin);
+        VEH_Teleport(ent, org, ent->r.currentAngles, nullptr);
+    }
+    if ( ent->sentient )
+        Sentient_InvalidateNearestNode(ent->sentient);
+#else
     Scr_GetVector(0, org, SCRIPTINSTANCE_SERVER);
     G_SetOrigin(ent, org);
+#endif
     if ( ent->r.linked )
         SV_LinkEntity(ent);
 }
@@ -25670,8 +25688,18 @@ void __cdecl Scr_SetAngles(gentity_s *ent, int)
 {
     float angles[3]; // [esp+0h] [ebp-Ch] BYREF
 
+#ifdef KISAK_SP
+    // Retail SP 0x0052A930.
+    if ( ent->actor )
+        Scr_Error("cannot directly set the angles on AI.  Use the teleport command instead.\n", false);
     Scr_GetVector(0, angles, SCRIPTINSTANCE_SERVER);
     G_SetAngle(ent, angles);
+    if ( ent->r.linked )
+        SV_LinkEntity(ent);
+#else
+    Scr_GetVector(0, angles, SCRIPTINSTANCE_SERVER);
+    G_SetAngle(ent, angles);
+#endif
 }
 
 void __cdecl Scr_SetExposureIndex(gentity_s *ent, int)
