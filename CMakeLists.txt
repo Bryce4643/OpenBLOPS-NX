@@ -27,6 +27,14 @@ target_sources(KisakBlack PRIVATE
     "${SRC_DIR}/game_mp/g_checkpoint_client_sp.cpp"
 )
 
+# The frontend's DEC-20 computer terminal (SP) and its Zork interpreter.
+target_sources(KisakBlack PRIVATE
+    "${SRC_DIR}/dec20/dec20_commands.cpp"
+    "${SRC_DIR}/dec20/dec20_terminal.cpp"
+    "${SRC_DIR}/dec20/dec20_zmachine.cpp"
+    "${SRC_DIR}/dec20/dec20_zork.cpp"
+)
+
 target_sources(KisakBlack PRIVATE
     "${SRC_DIR}/live/custom_class_sync.cpp"
     "${SRC_DIR}/openblops_directory/directory_protocol.cpp"

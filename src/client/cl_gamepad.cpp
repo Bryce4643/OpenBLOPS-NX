@@ -22,6 +22,9 @@
 #include <cgame/cg_compass.h>
 #include <cgame_mp/cg_scoreboard_mp.h>
 #include <cgame/cg_gamepad.h>
+#ifdef KISAK_SP
+#include <dec20/dec20_terminal.h>
+#endif
 
 int lastGamepadEventTimeGlobal;
 GpadAxesGlob gaGlobs[MAX_LOCAL_CLIENTS];
@@ -827,6 +830,12 @@ void __cdecl CL_GamepadButtonEvent(
             }
         }
     }
+#ifdef KISAK_SP
+    else
+    {
+        Dec20_KeyEvent(localClientNum, key, pressed, time);
+    }
+#endif
 }
 
 bool __cdecl CL_CheckForIgnoreDueToRepeat(int localClientNum, int key, int repeatCount, int time)

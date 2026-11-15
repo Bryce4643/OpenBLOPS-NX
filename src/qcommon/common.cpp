@@ -97,6 +97,9 @@
 #include <cgame/cg_clouds.h>
 #include <devgui/devgui.h>
 #include "tl_support.h"
+#ifdef KISAK_SP
+#include <dec20/dec20_terminal.h>
+#endif
 
 cmd_function_s Com_Error_f_VAR;
 cmd_function_s Com_Crash_f_VAR;
@@ -696,7 +699,13 @@ void __cdecl Com_InitDynamicRender()
     v1 = Com_IsMenuLevel(0);
     R_ExtraCam_Init(v1);
     v2 = Com_IsMenuLevel(0);
+#ifdef KISAK_SP
+    // Retail SP 0x0062D980: the frontend's monitors (the DEC-20 terminal among them) render
+    // into a 1024x1024 target, mission levels into 1024x512.
+    R_UI3D_OnetimeInit(0x400u, v2 ? 0x400u : 0x200u, 0, v2, 0);
+#else
     R_UI3D_OnetimeInit(0x80u, 0x80u, 0, v2, 0);
+#endif
 }
 
 void __cdecl Com_InitDynamicMemorySystems()
@@ -718,7 +727,11 @@ void __cdecl Com_InitDynamicMemorySystems()
 
 void __cdecl Com_ShutdownDynamicMemorySystems()
 {
-    //BLOPS_NULLSUB();
+#ifdef KISAK_SP
+    // Retail SP 0x0043C750 unloads terminal.ff first: it was loaded during play,
+    // above the buffers freed below.
+    Dec20_Shutdown();
+#endif
     Demo_DeallocatePlaybackMemory();
     GlassCl_FreeMemory();
     R_UI3D_Shutdown();
@@ -3747,6 +3760,9 @@ unsigned int Com_Frame_Try_Block_Function()
 #endif
             Com_UpdateMenu();
             CG_UpdateClouds(mseca);
+#ifdef KISAK_SP
+            Dec20_Update();
+#endif
             PhysicsSystem_Update();
         }
         //BG_EvalVehicleName(0);

@@ -57,6 +57,9 @@
 #ifdef KISAK_NX
 #include "keycodes.h"
 #endif
+#ifdef KISAK_SP
+#include <dec20/dec20_terminal.h>
+#endif
 
 const dvar_t *ui_netGameType;
 const dvar_t *uiscript_debug;
@@ -2797,6 +2800,11 @@ void __cdecl UI_OwnerDrawText(
         case 310:
             UI_DrawJoinMod(contextIndex, &rect, font, scale, color, textStyle);
             break;
+#ifdef KISAK_SP
+        case 356:
+            Dec20_Paint(localClientNum, &rect, font, scale, textStyle);
+            break;
+#endif
         default:
             break;
     }
