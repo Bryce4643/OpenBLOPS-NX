@@ -2582,15 +2582,19 @@ void __cdecl CG_PrimaryLight(int localClientNum, centity_s *cent)
         lightFraction = 0.0f;
     else if (lightFraction > 1.0f)
         lightFraction = 1.0f;
+    const LerpEntityStatePrimaryLight &nextLight = cent->nextState.lerp.u.primaryLight;
+    const LerpEntityStatePrimaryLight &currentLight = cent->nextState.number < MAX_GENTITIES
+        ? cent->currentState.u.primaryLight
+        : nextLight;
     light = &cgameGlob->refdef.primaryLights[cent->nextState.index.brushmodel];
     refLight = Com_GetPrimaryLight(cent->nextState.index.brushmodel);
-    Byte4UnpackRgba((const unsigned __int8 *)&cent->currentState.u, oldColor);
-    Byte4UnpackRgba((const unsigned __int8 *)&cent->nextState.lerp.u, newColor);
-    v6 = cent->currentState.u.turret.gunAngles[1];
+    Byte4UnpackRgba(currentLight.colorAndExp, oldColor);
+    Byte4UnpackRgba(nextLight.colorAndExp, newColor);
+    v6 = currentLight.intensity;
     oldColor[0] = v6 * oldColor[0];
     oldColor[1] = v6 * oldColor[1];
     oldColor[2] = v6 * oldColor[2];
-    v5 = cent->nextState.lerp.u.turret.gunAngles[1];
+    v5 = nextLight.intensity;
     newColor[0] = v5 * newColor[0];
     newColor[1] = v5 * newColor[1];
     newColor[2] = v5 * newColor[2];
@@ -2619,20 +2623,13 @@ void __cdecl CG_PrimaryLight(int localClientNum, centity_s *cent)
         BG_EvaluateTrajectory(&cent->nextState.lerp.pos, cgameGlob->time, light->origin);
         CG_ClampPrimaryLightOrigin(light, refLight);
     }
-    light->radius = (float)((float)(cent->nextState.lerp.u.turret.gunAngles[2] - cent->currentState.u.turret.gunAngles[2])
-                                                * lightFraction)
-                                + cent->currentState.u.turret.gunAngles[2];
-    light->cosHalfFovOuter = (float)((float)(cent->nextState.lerp.u.primaryLight.cosHalfFovOuter
-                                                                                 - cent->currentState.u.primaryLight.cosHalfFovOuter)
-                                                                 * lightFraction)
-                                                 + cent->currentState.u.primaryLight.cosHalfFovOuter;
-    light->cosHalfFovInner = (float)((float)(cent->nextState.lerp.u.turret.heatVal - cent->currentState.u.turret.heatVal)
-                                                                 * lightFraction)
-                                                 + cent->currentState.u.turret.heatVal;
-    light->exponent = (int)(float)((float)(cent->nextState.lerp.u.primaryLight.colorAndExp[3]
-                                                                             - cent->currentState.u.primaryLight.colorAndExp[3])
-                                                             * lightFraction)
-                                    + cent->currentState.u.primaryLight.colorAndExp[3];
+    light->radius = currentLight.radius + (nextLight.radius - currentLight.radius) * lightFraction;
+    light->cosHalfFovOuter = currentLight.cosHalfFovOuter
+        + (nextLight.cosHalfFovOuter - currentLight.cosHalfFovOuter) * lightFraction;
+    light->cosHalfFovInner = currentLight.cosHalfFovInner
+        + (nextLight.cosHalfFovInner - currentLight.cosHalfFovInner) * lightFraction;
+    light->exponent = static_cast<int>(currentLight.colorAndExp[3]
+        + (nextLight.colorAndExp[3] - currentLight.colorAndExp[3]) * lightFraction);
     // Apply the existing quantization repair on every platform.
     // The inner cone travels in u.turret.heatVal, which the entity net fields
     // send as MSG_FIELD_0TO1_P2 -- quantized -- while the outer one is a full
