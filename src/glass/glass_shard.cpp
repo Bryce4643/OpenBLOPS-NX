@@ -2967,7 +2967,7 @@ void __thiscall GlassShard::Update(float deltaTime)
             Sys_EnterCriticalSection(CRITSECT_PHYSICS);
             Phys_ObjGetPosition(this->physObjId, this->origin, this->axis);
             //isStable = rigid_body::is_stable(*(rigid_body **)this->physObjId) != 0;
-            const rigid_body *body = Phys_GetUserData(this->physObjId)->body;
+            rigid_body *body = Phys_GetUserData(this->physObjId)->body;
             isStable = body->is_stable() != 0;
             // A shard flung by a huge explosion moves past the broad phase step limit
             // (MAX_TRANSLATION_SQ) and never settles: it either leaves the world or
