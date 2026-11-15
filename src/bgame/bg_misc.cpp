@@ -750,7 +750,11 @@ void __cdecl BG_RegisterDvars()
                                                          "The height that a player will start to take minimum damage if they fall");
     bg_fallDamageMaxHeight = _Dvar_RegisterFloat(
                                                          "bg_fallDamageMaxHeight",
+#ifdef KISAK_SP
+                                                         350.0,
+#else
                                                          300.0,
+#endif
                                                          1.0,
                                                          3.4028235e38,
                                                          0x180u,
