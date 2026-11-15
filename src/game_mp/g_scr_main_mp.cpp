@@ -5834,31 +5834,7 @@ void __cdecl GScr_ConnectPaths(scr_entref_t entref)
         v2 = va("entity of type '%s' cannot connect paths \n\n", v1);
         Scr_Error(v2, 0);
     }
-#ifdef KISAK_SP
-    const int flagsBefore = ent->flags;
-    const unsigned int disconnectedLinksBefore = ent->disconnectedLinks;
-    Com_Printf(
-        15,
-        "ZM_BARRICADE connectpaths_begin ent=%d flags=0x%08X disconnected=%u\n",
-        ent->s.number,
-        flagsBefore,
-        disconnectedLinksBefore);
-#endif
     Path_ConnectPathsForEntity(ent);
-#ifdef KISAK_SP
-    // Behavior-neutral Zombies barricade probe. The shipped spawner script
-    // calls connectpaths() only after the board-tear animation finishes. This
-    // records whether that wrapper reached the native dynamic-path pipeline
-    // and whether it consumed the entity's disconnected-link chain.
-    Com_Printf(
-        15,
-        "ZM_BARRICADE connectpaths ent=%d flags=0x%08X->0x%08X disconnected=%u->%u\n",
-        ent->s.number,
-        flagsBefore,
-        ent->flags,
-        disconnectedLinksBefore,
-        ent->disconnectedLinks);
-#endif
 }
 
 // LWSS ADD
