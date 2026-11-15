@@ -478,6 +478,12 @@ void __cdecl GScr_LoadGameTypeScript()
                                         GSCR_CALLBACKSETUP_SCRIPT,
                                         "CodeCallback_Dec20Message",
                                         1);
+    // Retail slot 1 (0x006124dc, stored at 0x01c79b30), enforced like the two above.
+    g_scr_data.saverestored = GScr_LoadScriptAndLabel(
+                                        SCRIPTINSTANCE_SERVER,
+                                        GSCR_CALLBACKSETUP_SCRIPT,
+                                        "CodeCallback_SaveRestored",
+                                        1);
 #endif
     g_scr_data.glassSmash = GScr_LoadScriptAndLabel(
                                         SCRIPTINSTANCE_SERVER,
@@ -494,7 +500,7 @@ void __cdecl GScr_LoadGameTypeScript()
     // Com_Error check (i.e. this file's bEnforceExists):
     //
     //     maps/_callbacksetup:
-    //       1  CodeCallback_SaveRestored            enforce 1   *** NOT LOADED HERE ***
+    //       1  CodeCallback_SaveRestored            enforce 1   (LOADED, run after a checkpoint restore)
     //       2  CodeCallback_StartGameType           enforce 1
     //       3  CodeCallback_PlayerConnect           enforce 1
     //       4  CodeCallback_PlayerDisconnect        enforce 1
@@ -539,9 +545,9 @@ void __cdecl GScr_LoadGameTypeScript()
     // consumer; it is loaded only because retail loads it and the label is present, so its handle
     // costs nothing.
     //
-    // WHY THE REMAINING FOUR ARE NOT ADDED: three of them (SaveRestored, ActorShouldReact,
+    // WHY THE REMAINING THREE ARE NOT ADDED: two of them (ActorShouldReact,
     // DisconnectedDuringLoad) have no field in scr_data_t_unnamed_type_gametype at all, and the
-    // fourth (playerrevive) has a field that NOTHING in this tree reads. Adding them therefore
+    // third (playerrevive) has a field that NOTHING in this tree reads. Adding them therefore
     // buys no behaviour, while each one is a new bEnforceExists=1 site, i.e. a new hard
     // Com_Error(ERR_DROP) at level load if any single assumption about SP's shipped
     // _callbacksetup is wrong. That trade is the wrong way round. A future pass that wants them
