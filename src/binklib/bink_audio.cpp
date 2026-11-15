@@ -1,14 +1,14 @@
-#include "nx_bink_audio.h"
+#include "bink_audio.h"
 
 #include <algorithm>
 #include <cstdlib>
 
-NxBinkAudio::~NxBinkAudio()
+BinkAudioQueue::~BinkAudioQueue()
 {
     std::free(buffer);
 }
 
-bool NxBinkAudio::initialize(size_t frames)
+bool BinkAudioQueue::initialize(size_t frames)
 {
     if (!frames || frames > Rate * 16)
         return false;
@@ -17,7 +17,7 @@ bool NxBinkAudio::initialize(size_t frames)
     return buffer != nullptr;
 }
 
-bool NxBinkAudio::add(const float *samples, size_t frames, uint64_t first, float volume)
+bool BinkAudioQueue::add(const float *samples, size_t frames, uint64_t first, float volume)
 {
     std::lock_guard<std::mutex> lock(mutex);
     if (first < position)
@@ -40,13 +40,13 @@ bool NxBinkAudio::add(const float *samples, size_t frames, uint64_t first, float
     return true;
 }
 
-void NxBinkAudio::start()
+void BinkAudioQueue::start()
 {
     std::lock_guard<std::mutex> lock(mutex);
     started = true;
 }
 
-uint64_t NxBinkAudio::timeLocked(uint64_t now)
+uint64_t BinkAudioQueue::timeLocked(uint64_t now)
 {
     if (paused)
         return pausedTime;
@@ -59,13 +59,13 @@ uint64_t NxBinkAudio::timeLocked(uint64_t now)
     return lastTime;
 }
 
-uint64_t NxBinkAudio::timeUs(uint64_t now)
+uint64_t BinkAudioQueue::timeUs(uint64_t now)
 {
     std::lock_guard<std::mutex> lock(mutex);
     return timeLocked(now);
 }
 
-void NxBinkAudio::pause(bool value, uint64_t now)
+void BinkAudioQueue::pause(bool value, uint64_t now)
 {
     std::lock_guard<std::mutex> lock(mutex);
     if (value && !paused)
@@ -73,7 +73,7 @@ void NxBinkAudio::pause(bool value, uint64_t now)
     paused = value;
 }
 
-void NxBinkAudio::mix(float *output, unsigned frames, unsigned queuedFrames, uint64_t now)
+void BinkAudioQueue::mix(float *output, unsigned frames, unsigned queuedFrames, uint64_t now)
 {
     std::lock_guard<std::mutex> lock(mutex);
     if (!started || paused)

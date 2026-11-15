@@ -1,18 +1,26 @@
-// xmmintrin.h -- SSE/MMX compatibility shim for AArch64.
+// xmmintrin.h -- SSE/MMX intrinsics for targets without SSE (AArch64).
 //
 // Implements exactly the intrinsics KisakBlack uses, on MSVC-style union
 // types (the game accesses .m128_f32[] / .m64_u64 members directly).
 // Scalar implementations; correctness over speed. The one semantic that
 // matters for gameplay determinism: _mm_cvtss_si32 rounds to NEAREST-EVEN,
 // which matches AArch64's default FP rounding via lrintf.
-#ifndef NX_COMPAT_XMMINTRIN_H
-#define NX_COMPAT_XMMINTRIN_H
+#ifndef KISAK_COMPAT_XMMINTRIN_H
+#define KISAK_COMPAT_XMMINTRIN_H
 
 #include <stdint.h>
 #include <fenv.h>
 #include <math.h>
 
-typedef union __attribute__((aligned(16))) __m128 {
+#if defined(_MSC_VER)
+#include <intrin.h>
+#include <malloc.h>   // MSVC's xmmintrin.h provides alloca through it
+#define KISAK_SSE_ALIGN(n) __declspec(align(n))
+#else
+#define KISAK_SSE_ALIGN(n) __attribute__((aligned(n)))
+#endif
+
+typedef union KISAK_SSE_ALIGN(16) __m128 {
     float    m128_f32[4];
     uint64_t m128_u64[2];
     int8_t   m128_i8[16];
@@ -24,7 +32,7 @@ typedef union __attribute__((aligned(16))) __m128 {
     uint32_t m128_u32[4];
 } __m128;
 
-typedef union __attribute__((aligned(8))) __m64 {
+typedef union KISAK_SSE_ALIGN(8) __m64 {
     uint64_t m64_u64;
     float    m64_f32[2];
     int8_t   m64_i8[8];
@@ -44,8 +52,12 @@ typedef union __attribute__((aligned(8))) __m64 {
 #define _MM_HINT_T1  2
 #define _MM_HINT_T2  3
 
-#ifndef _mm_prefetch // usually provided by nx_prefix.h
+#ifndef _mm_prefetch
+#if defined(_MSC_VER)
+#define _mm_prefetch(p, hint) __prefetch((const void *)(p))
+#else
 #define _mm_prefetch(p, hint) __builtin_prefetch((const void *)(p))
+#endif
 #endif
 
 static inline __m128 _mm_set_ss(float w)
@@ -79,7 +91,11 @@ static inline void _mm_stream_ps(float *p, __m128 a) { _mm_store_ps(p, a); }
 static inline void _mm_stream_pi(__m64 *p, __m64 a)  { p->m64_u64 = a.m64_u64; }
 static inline void _mm_empty(void) {}
 #define _m_empty _mm_empty
+#if defined(_MSC_VER)
+static inline void _mm_sfence(void) { __dmb(_ARM64_BARRIER_SY); }
+#else
 static inline void _mm_sfence(void) { __atomic_thread_fence(__ATOMIC_SEQ_CST); }
+#endif
 
 static inline __m128 _mm_add_ps(__m128 a, __m128 b)
 {
@@ -223,6 +239,10 @@ static inline __m128 _mm_cvtsi32_ss(__m128 a, int b)
 }
 static inline float _mm_cvtss_f32(__m128 a) { return a.m128_f32[0]; }
 
+#if defined(_MSC_VER)
+static inline void _mm_pause(void) { __yield(); }
+#else
 static inline void _mm_pause(void) { __asm__ __volatile__("yield"); }
+#endif
 
-#endif // NX_COMPAT_XMMINTRIN_H
+#endif // KISAK_COMPAT_XMMINTRIN_H

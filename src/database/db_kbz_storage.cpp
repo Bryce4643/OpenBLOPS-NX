@@ -1,4 +1,4 @@
-#include "nx_kbz_storage.h"
+#include "db_kbz_storage.h"
 
 #include <algorithm>
 #include <cerrno>
@@ -16,7 +16,7 @@ constexpr unsigned RuntimeBlock = 1;
 struct Reader {
     FILE *file;
     size_t total, completed;
-    NxKbzProgress progress;
+    KbzProgress progress;
     ZSTD_DStream *stream = nullptr;
     uint8_t *buffer = nullptr;
     ZSTD_inBuffer input{};
@@ -84,12 +84,12 @@ struct Cursor {
     }
 };
 
-bool contains(const NxKbzStorage &storage, uint8_t block, uint32_t offset, size_t size) {
+bool contains(const KbzStorage &storage, uint8_t block, uint32_t offset, size_t size) {
     return block < storage.blockCount && storage.blocks[block]
         && offset <= storage.sizes[block] && size <= storage.sizes[block] - offset;
 }
 
-bool validate(const NxKbzStorage &storage) {
+bool validate(const KbzStorage &storage) {
     Cursor cursor{storage.metadata, storage.metadataSize};
     for (uint32_t i = 0; i < storage.relocCount; ++i) {
         uint8_t source, target;
@@ -136,7 +136,7 @@ bool validate(const NxKbzStorage &storage) {
     return cursor.remaining == 0;
 }
 
-bool readStorage(Reader &reader, NxKbzStorage &storage) {
+bool readStorage(Reader &reader, KbzStorage &storage) {
     char magic[4];
     if (!reader.read(magic, sizeof(magic)) || memcmp(magic, "KBZ1", 4)
         || !reader.read(&storage.version, 4) || storage.version < 1 || storage.version > 3
@@ -164,7 +164,7 @@ bool readStorage(Reader &reader, NxKbzStorage &storage) {
 }
 }
 
-int NX_ReadKbz(const char *path, NxKbzStorage **storage, NxKbzProgress progress) {
+int DB_ReadKbz(const char *path, KbzStorage **storage, KbzProgress progress) {
     *storage = nullptr;
     FILE *file = fopen(path, "rb");
     if (!file) return errno == ENOENT ? 0 : -1;
@@ -174,7 +174,7 @@ int NX_ReadKbz(const char *path, NxKbzStorage **storage, NxKbzProgress progress)
         fclose(file);
         return -1;
     }
-    auto *result = static_cast<NxKbzStorage *>(calloc(1, sizeof(NxKbzStorage)));
+    auto *result = static_cast<KbzStorage *>(calloc(1, sizeof(KbzStorage)));
     Reader reader{file, size_t(length), 0, progress};
     std::unique_ptr<ZSTD_DStream, decltype(&ZSTD_freeDStream)> stream(nullptr, ZSTD_freeDStream);
     std::unique_ptr<uint8_t, decltype(&free)> buffer(nullptr, free);
@@ -204,16 +204,16 @@ int NX_ReadKbz(const char *path, NxKbzStorage **storage, NxKbzProgress progress)
     const bool ok = ready && result && readStorage(reader, *result);
     fclose(file);
     if (!ok) {
-        NX_FreeKbzStorage(result);
+        DB_FreeKbzStorage(result);
         return -1;
     }
     if (stream)
-        printf("[nx-kbz] packed zone (openblops-kbzz-1): %s, %zu bytes unpacked\n", path, reader.total);
+        printf("[kbz] packed zone (openblops-kbzz-1): %s, %zu bytes unpacked\n", path, reader.total);
     *storage = result;
     return 1;
 }
 
-void NX_FreeKbzStorage(NxKbzStorage *storage) {
+void DB_FreeKbzStorage(KbzStorage *storage) {
     if (!storage) return;
     for (auto *block : storage->blocks) free(block);
     free(storage->metadata);

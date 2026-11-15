@@ -5,6 +5,9 @@
 # suffix, so both share kbz/. Run from the msys2 UCRT64 shell after
 # tools/ffconv/build.sh:
 #   GAME=/f/pluto_t5_full_game sh tools/nx/convert-zones.sh
+# ALL=1 converts every zone of the install instead, campaign missions
+# included, as the web installer does:
+#   ALL=1 GAME=/c/Games/BlackOps sh tools/nx/convert-zones.sh
 root=$(cd "$(dirname "$0")/../.." && pwd)
 GAME=${GAME:?set GAME to the Black Ops install}
 TOOLS=$root/tools/ffconv
@@ -12,7 +15,27 @@ OUT="$GAME/kbz"
 mkdir -p "$OUT"
 LOG=$OUT/convert.log
 : > "$LOG"
-for z in \
+convert_zone() {
+    z=$1
+    name=$(basename "$z")
+    kbz="$OUT/$name.kbz"
+    echo "===== $name" >> "$LOG"
+    if "$TOOLS/convert.exe" "$GAME/zone/$z.ff" "$kbz" >> "$LOG" 2>&1; then
+        if "$TOOLS/kbzdump.exe" "$kbz" >> "$LOG" 2>&1; then
+            printf '%-22s OK        %s bytes\n' "$name" "$(stat -c %s "$kbz")"
+        else
+            printf '%-22s CONVERTED, kbzdump FAILED\n' "$name"
+        fi
+    else
+        printf '%-22s CONVERT FAILED (exit %s)\n' "$name" "$?"
+        rm -f "$kbz"
+    fi
+}
+
+if [ -n "$ALL" ]; then
+    zones=$(cd "$GAME/zone" && find . -iname "*.ff" | sed -e "s|^\./||" -e "s|\.[fF][fF]$||" | sort)
+else
+    zones="\
     Common/code_pre_gfx_mp   English/en_code_pre_gfx_mp \
     Common/code_post_gfx_mp  English/en_code_post_gfx_mp \
     Common/common_mp         English/en_common_mp \
@@ -53,19 +76,8 @@ for z in \
     Common/terminal          English/en_terminal \
     Common/common_zombie     Common/common_zombie_patch English/en_common_zombie \
     Common/zombie_theater    Common/zombie_theater_patch English/en_zombie_theater \
-    Common/zombie_pentagon   Common/zombie_pentagon_patch English/en_zombie_pentagon
-do
-    name=$(basename "$z")
-    kbz="$OUT/$name.kbz"
-    echo "===== $name" >> "$LOG"
-    if "$TOOLS/convert.exe" "$GAME/zone/$z.ff" "$kbz" >> "$LOG" 2>&1; then
-        if "$TOOLS/kbzdump.exe" "$kbz" >> "$LOG" 2>&1; then
-            printf '%-22s OK        %s bytes\n' "$name" "$(stat -c %s "$kbz")"
-        else
-            printf '%-22s CONVERTED, kbzdump FAILED\n' "$name"
-        fi
-    else
-        printf '%-22s CONVERT FAILED (exit %s)\n' "$name" "$?"
-        rm -f "$kbz"
-    fi
+    Common/zombie_pentagon   Common/zombie_pentagon_patch English/en_zombie_pentagon"
+fi
+for z in $zones; do
+    convert_zone "$z"
 done

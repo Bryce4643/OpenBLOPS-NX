@@ -25,7 +25,7 @@ int __cdecl Sys_SystemMemoryMB()
     hm = GetModuleHandleA("kernel32.dll");
     if ( hm && (MemStatEx = (int (__stdcall *)(_MEMORYSTATUSEX *))GetProcAddress(hm, "GlobalMemoryStatusEx")) != 0 )
     {
-        statusEx.dwLength = 64;
+        statusEx.dwLength = sizeof(statusEx);
         MemStatEx(&statusEx);
         if (statusEx.ullAvailVirtual < 0x8000000)
         {
@@ -46,7 +46,7 @@ int __cdecl Sys_SystemMemoryMB()
     }
     else
     {
-        status.dwLength = 32;
+        status.dwLength = sizeof(status);
         GlobalMemoryStatus(&status);
         if (status.dwAvailVirtual < 0x8000000)
         {

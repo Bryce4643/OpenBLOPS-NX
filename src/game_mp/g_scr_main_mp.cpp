@@ -20015,7 +20015,7 @@ static void __cdecl GScr_WeaponMaxDist_SP()
     Scr_AddFloat(BG_GetWeaponDef(weaponIndex)->maxDist, SCRIPTINSTANCE_SERVER);
 }
 
-#ifndef KISAK_NX // nx-port: x86 layout asserts; the fields are read by name
+#ifndef KISAK_64BIT // nx-port: x86 layout asserts; the fields are read by name
 static_assert(offsetof(WeaponDef, fightDist) == 0x70c,
               "WeaponFightDist reads retail SP WeaponDef +0x70c. If fightDist has moved, this "
               "tree's WeaponDef no longer matches the layout that offset was verified against.");
@@ -20545,7 +20545,7 @@ static void GScr_GetWeaponClipModel_SP()
     Scr_AddString(modelName, SCRIPTINSTANCE_SERVER);
 }
 
-#ifndef KISAK_NX
+#ifndef KISAK_64BIT
 static_assert(offsetof(WeaponDef, worldClipModel) == 0x310);
 static_assert(offsetof(WeaponDef, weapType) == 0x1c);
 #endif

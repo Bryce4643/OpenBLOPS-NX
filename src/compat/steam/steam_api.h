@@ -1,18 +1,18 @@
-// steam_api.h -- header-only fake Steam SDK for the Switch build (shadows
-// src/steam/* via include-path priority).
+// steam_api.h -- header-only fake Steam SDK for builds without the Steamworks
+// binaries (shadows src/steam/* via include-path priority).
 //
 // Behavior: pretends a logged-on Steam user with a fixed SteamID so the
 // game's online plumbing stays alive; auth always succeeds; callbacks never
 // fire (SteamAPI_RunCallbacks is a no-op), P2P/friends/stats are empty.
-#ifndef NX_COMPAT_STEAM_API_H
-#define NX_COMPAT_STEAM_API_H
+#ifndef KISAK_COMPAT_STEAM_API_H
+#define KISAK_COMPAT_STEAM_API_H
 
 #include <stdint.h>
 #include <string.h>
 
 // ----- steam base types (match q_shared.h typedefs where they overlap) ------
-#ifndef NX_STEAM_BASE_TYPES
-#define NX_STEAM_BASE_TYPES
+#ifndef KISAK_STEAM_BASE_TYPES
+#define KISAK_STEAM_BASE_TYPES
 typedef unsigned char      uint8;
 typedef signed char        int8;
 typedef short              int16;
@@ -353,7 +353,7 @@ public:
 
 class ISteamFriends {
 public:
-    const char *GetPersonaName() { return "SwitchPlayer"; }
+    const char *GetPersonaName() { return "Player"; }
     int GetFriendCount(int) { return 0; }
     CSteamID GetFriendByIndex(int, int) { return CSteamID(); }
     const char *GetFriendPersonaName(CSteamID) { return ""; }
@@ -372,6 +372,14 @@ public:
         if (failed) *failed = true;
         return true;
     }
+};
+
+// No Steam client to ask about DLC: SteamApps() is null and the content code
+// checks for the DLC zones on disk instead.
+class ISteamApps {
+public:
+    bool BIsDlcInstalled(AppId_t) { return false; }
+    bool BIsSubscribedApp(AppId_t) { return false; }
 };
 
 typedef void (*SteamAPIWarningMessageHook_t)(int, const char *);
@@ -452,6 +460,10 @@ inline ISteamUtils *SteamUtils()
     static ISteamUtils s;
     return &s;
 }
+inline ISteamApps *SteamApps()
+{
+    return nullptr;
+}
 inline ISteamClient *SteamClient()
 {
     static ISteamClient s;
@@ -492,4 +504,4 @@ inline void SteamGameServer_Shutdown() {}
 inline void SteamGameServer_RunCallbacks() {}
 inline uint64 SteamGameServer_GetSteamID() { return 0; }
 
-#endif // NX_COMPAT_STEAM_API_H
+#endif // KISAK_COMPAT_STEAM_API_H

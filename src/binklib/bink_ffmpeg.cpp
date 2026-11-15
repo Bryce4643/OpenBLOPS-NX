@@ -1,5 +1,5 @@
-#include "nx_bink.h"
-#include "nx_bink_audio.h"
+#include "bink_ffmpeg.h"
+#include "bink_audio.h"
 
 #include <algorithm>
 #include <cstdio>
@@ -12,9 +12,11 @@ extern "C" {
 #include <libavutil/mathematics.h>
 #include <libavutil/mem.h>
 #include <libswresample/swresample.h>
+#ifdef KISAK_FFMPEG_STATIC_DECODERS
 extern const AVCodec ff_bink_decoder;
 extern const AVCodec ff_binkaudio_dct_decoder;
 extern const AVCodec ff_binkaudio_rdft_decoder;
+#endif
 }
 
 namespace
@@ -29,6 +31,45 @@ bool fail(const char *text)
 {
     std::snprintf(errorText, sizeof(errorText), "%s", text);
     return false;
+}
+
+// A static FFmpeg links only the decoders referenced here; a shared one
+// exports the codec registry instead.
+const AVCodec *decoder(AVCodecID id)
+{
+#ifdef KISAK_FFMPEG_STATIC_DECODERS
+    switch (id)
+    {
+    case AV_CODEC_ID_BINKVIDEO:
+        return &ff_bink_decoder;
+    case AV_CODEC_ID_BINKAUDIO_DCT:
+        return &ff_binkaudio_dct_decoder;
+    case AV_CODEC_ID_BINKAUDIO_RDFT:
+        return &ff_binkaudio_rdft_decoder;
+    default:
+        return nullptr;
+    }
+#else
+    return avcodec_find_decoder(id);
+#endif
+}
+
+int seekFile(FILE *file, int64_t offset, int origin)
+{
+#ifdef _WIN32
+    return _fseeki64(file, offset, origin);
+#else
+    return fseeko(file, offset, origin);
+#endif
+}
+
+int64_t tellFile(FILE *file)
+{
+#ifdef _WIN32
+    return _ftelli64(file);
+#else
+    return ftello(file);
+#endif
 }
 
 uint32_t little32(const void *data)
@@ -70,7 +111,7 @@ struct Movie : BINK
     uint8_t *compressed = nullptr;
     unsigned packetCapacity = 0;
     unsigned tag = 0, videoFlags = 0;
-    NxBinkAudio audio;
+    BinkAudioQueue audio;
     bool audioAttached = false, started = false, paused = false, rewind = false;
     uint64_t sequence = 0, epoch = 0, pausedAt = 0, loopSample = 0;
 
@@ -78,7 +119,7 @@ struct Movie : BINK
     ~Movie()
     {
         if (audioAttached)
-            NX_DetachCinematicAudio(&audio);
+            Snd_DetachCinematicAudio(&audio);
         av_packet_free(&packet);
         av_frame_free(&frame);
         avcodec_free_context(&video);
@@ -101,7 +142,7 @@ struct Movie : BINK
 
     bool seek(uint64_t position)
     {
-        if (position > sourceSize || (!memory && position != offset && fseeko(file, position, SEEK_SET)))
+        if (position > sourceSize || (!memory && position != offset && seekFile(file, int64_t(position), SEEK_SET)))
             return fail("Bink file seek failed");
         offset = position;
         return true;
@@ -116,7 +157,7 @@ struct Movie : BINK
     {
         if (!started)
             return 0;
-        const uint64_t now = NX_BinkTimeUs();
+        const uint64_t now = Sys_BinkTimeUs();
         if (audioAttached)
             return audio.timeUs(now);
         return (paused ? pausedAt : now) - epoch;
@@ -136,17 +177,19 @@ bool extraData(AVCodecContext *codec, uint32_t value)
 
 bool openTrack(Track &track, unsigned tag)
 {
-    const AVCodec *decoder = (track.flags & 0x1000) ? &ff_binkaudio_dct_decoder : &ff_binkaudio_rdft_decoder;
-    track.codec = avcodec_alloc_context3(decoder);
+    const AVCodec *codec = decoder((track.flags & 0x1000) ? AV_CODEC_ID_BINKAUDIO_DCT : AV_CODEC_ID_BINKAUDIO_RDFT);
+    if (!codec)
+        return fail("Bink audio decoder unavailable");
+    track.codec = avcodec_alloc_context3(codec);
     track.frame = av_frame_alloc();
     if (!track.codec || !track.frame)
         return fail("Out of memory opening Bink audio");
     track.codec->sample_rate = track.rate;
     av_channel_layout_default(&track.codec->ch_layout, track.channels);
-    if (!extraData(track.codec, tag) || avcodec_open2(track.codec, decoder, nullptr) < 0)
+    if (!extraData(track.codec, tag) || avcodec_open2(track.codec, codec, nullptr) < 0)
         return fail("Cannot open Bink audio decoder");
     AVChannelLayout stereo = AV_CHANNEL_LAYOUT_STEREO;
-    if (swr_alloc_set_opts2(&track.resampler, &stereo, AV_SAMPLE_FMT_FLT, NxBinkAudio::Rate,
+    if (swr_alloc_set_opts2(&track.resampler, &stereo, AV_SAMPLE_FMT_FLT, BinkAudioQueue::Rate,
                           &track.codec->ch_layout, track.codec->sample_fmt, track.rate, 0, nullptr) < 0
         || swr_init(track.resampler) < 0)
         return fail("Cannot open Bink audio resampler");
@@ -189,7 +232,7 @@ bool openMovie(Movie &m, unsigned flags)
     m.index.reset(new (std::nothrow) uint32_t[m.Frames + 1]);
     if (!m.tracks || !m.index)
         return fail("Out of memory opening Bink index");
-    unsigned audioCapacity = NxBinkAudio::Rate * 2;
+    unsigned audioCapacity = BinkAudioQueue::Rate * 2;
     for (unsigned i = 0; i < trackCount; ++i)
     {
         Track &track = m.tracks[i];
@@ -204,10 +247,10 @@ bool openMovie(Movie &m, unsigned flags)
             return fail("Invalid Bink audio header");
         if (track.selected)
         {
-            const uint64_t frames = uint64_t(maxPCM) * NxBinkAudio::Rate / (2 * track.channels * track.rate);
-            if (frames > NxBinkAudio::Rate * 14)
+            const uint64_t frames = uint64_t(maxPCM) * BinkAudioQueue::Rate / (2 * track.channels * track.rate);
+            if (frames > BinkAudioQueue::Rate * 14)
                 return fail("Bink audio packet exceeds buffer limit");
-            audioCapacity = std::max(audioCapacity, unsigned(frames) + NxBinkAudio::Rate * 2);
+            audioCapacity = std::max(audioCapacity, unsigned(frames) + BinkAudioQueue::Rate * 2);
         }
     }
     const uint64_t headerEnd = m.offset + uint64_t(m.Frames) * 4;
@@ -232,7 +275,10 @@ bool openMovie(Movie &m, unsigned flags)
     }
     m.LargestFrameSize = m.packetCapacity;
     m.compressed = static_cast<uint8_t *>(av_malloc(m.packetCapacity + AV_INPUT_BUFFER_PADDING_SIZE));
-    m.video = avcodec_alloc_context3(&ff_bink_decoder);
+    const AVCodec *videoCodec = decoder(AV_CODEC_ID_BINKVIDEO);
+    if (!videoCodec)
+        return fail("Bink video decoder unavailable");
+    m.video = avcodec_alloc_context3(videoCodec);
     m.frame = av_frame_alloc();
     m.packet = av_packet_alloc();
     if (!m.compressed || !m.video || !m.frame || !m.packet)
@@ -241,13 +287,13 @@ bool openMovie(Movie &m, unsigned flags)
     m.video->height = m.Height;
     m.video->codec_tag = m.tag;
     m.video->thread_count = 1;
-    if (!extraData(m.video, m.videoFlags) || avcodec_open2(m.video, &ff_bink_decoder, nullptr) < 0)
+    if (!extraData(m.video, m.videoFlags) || avcodec_open2(m.video, videoCodec, nullptr) < 0)
         return fail("Cannot open Bink video decoder");
     if (trackCount && selectedCount)
     {
         if (!m.audio.initialize(audioCapacity))
             return fail("Out of memory opening Bink audio buffer");
-        m.audioAttached = NX_AttachCinematicAudio(&m.audio);
+        m.audioAttached = Snd_AttachCinematicAudio(&m.audio);
         if (m.audioAttached)
             for (unsigned i = 0; i < trackCount; ++i)
                 if (m.tracks[i].selected && !openTrack(m.tracks[i], m.tag))
@@ -275,7 +321,7 @@ bool decodeAudio(Movie &m, Track &track, const uint8_t *data, unsigned size)
         return fail("Invalid Bink audio packet");
     int result;
     float samples[4096 * 2];
-    const uint64_t end = m.timestamp((m.sequence / m.Frames + 1) * m.Frames, NxBinkAudio::Rate);
+    const uint64_t end = m.timestamp((m.sequence / m.Frames + 1) * m.Frames, BinkAudioQueue::Rate);
     while ((result = avcodec_receive_frame(track.codec, track.frame)) >= 0)
     {
         const uint8_t **input = const_cast<const uint8_t **>(track.frame->extended_data);
@@ -336,13 +382,13 @@ HBINK RADEXPLINK BinkOpen(const char *name, U32 flags)
     m->fileBuffer.reset(new (std::nothrow) char[FileBufferSize]);
     if (m->fileBuffer)
         std::setvbuf(m->file, m->fileBuffer.get(), _IOFBF, FileBufferSize);
-    if (fseeko(m->file, 0, SEEK_END))
+    if (seekFile(m->file, 0, SEEK_END))
     {
         fail("Cannot determine Bink file size");
         return nullptr;
     }
-    const auto size = ftello(m->file);
-    if (size < 0 || fseeko(m->file, 0, SEEK_SET))
+    const auto size = tellFile(m->file);
+    if (size < 0 || seekFile(m->file, 0, SEEK_SET))
     {
         fail("Cannot seek Bink file");
         return nullptr;
@@ -351,7 +397,7 @@ HBINK RADEXPLINK BinkOpen(const char *name, U32 flags)
     return openMovie(*m, flags) ? m.release() : nullptr;
 }
 
-HBINK NX_BinkOpenMemory(const void *data, size_t size, unsigned flags)
+HBINK Bink_OpenMemory(const void *data, size_t size, unsigned flags)
 {
     errorText[0] = 0;
     std::unique_ptr<Movie> m(new (std::nothrow) Movie);
@@ -435,7 +481,7 @@ S32 RADEXPLINK BinkDoFrame(HBINK bink)
                     m.ReadError = 1;
             }
         }
-        m.loopSample = m.timestamp(m.sequence, NxBinkAudio::Rate);
+        m.loopSample = m.timestamp(m.sequence, BinkAudioQueue::Rate);
         m.rewind = false;
     }
     const unsigned first = m.index[m.FrameNum - 1];
@@ -486,7 +532,7 @@ S32 RADEXPLINK BinkDoFrame(HBINK bink)
     {
         m.ReadError = 1;
         if (m.audioAttached)
-            m.audio.pause(true, NX_BinkTimeUs());
+            m.audio.pause(true, Sys_BinkTimeUs());
         if (!errorText[0])
             fail("Bink video decode failed");
         return -1;
@@ -494,7 +540,7 @@ S32 RADEXPLINK BinkDoFrame(HBINK bink)
     m.LastFrameNum = m.FrameNum;
     if (!m.started)
     {
-        m.epoch = NX_BinkTimeUs();
+        m.epoch = Sys_BinkTimeUs();
         m.pausedAt = m.epoch;
         m.started = true;
         if (m.audioAttached)
@@ -520,21 +566,21 @@ S32 RADEXPLINK BinkWait(HBINK bink)
     auto &m = *static_cast<Movie *>(bink);
     std::lock_guard<std::mutex> lock(m.mutex);
     const uint64_t due = m.sequence + (m.LastFrameNum == m.FrameNum && !m.rewind);
-    return !m.ReadError && (!NX_BinkHasFocus() || m.paused || (m.started && m.clock() < m.timestamp(due, 1000000)));
+    return !m.ReadError && (!Sys_BinkHasFocus() || m.paused || (m.started && m.clock() < m.timestamp(due, 1000000)));
 }
 
 S32 RADEXPLINK BinkShouldSkip(HBINK bink)
 {
     auto &m = *static_cast<Movie *>(bink);
     std::lock_guard<std::mutex> lock(m.mutex);
-    return !m.ReadError && NX_BinkHasFocus() && !m.paused && m.started && m.clock() >= m.timestamp(m.sequence + 1, 1000000);
+    return !m.ReadError && Sys_BinkHasFocus() && !m.paused && m.started && m.clock() >= m.timestamp(m.sequence + 1, 1000000);
 }
 
 S32 RADEXPLINK BinkPause(HBINK bink, S32 paused)
 {
     auto &m = *static_cast<Movie *>(bink);
     std::lock_guard<std::mutex> lock(m.mutex);
-    const uint64_t now = NX_BinkTimeUs();
+    const uint64_t now = Sys_BinkTimeUs();
     if (bool(paused) != m.paused)
     {
         if (paused)
@@ -548,7 +594,7 @@ S32 RADEXPLINK BinkPause(HBINK bink, S32 paused)
     return m.paused;
 }
 
-bool NX_BinkFinished(HBINK bink)
+bool Bink_Finished(HBINK bink)
 {
     auto &m = *static_cast<Movie *>(bink);
     std::lock_guard<std::mutex> lock(m.mutex);

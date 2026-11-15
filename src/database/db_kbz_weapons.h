@@ -1,8 +1,8 @@
 #pragma once
 
-#include "nx_kbz_storage.h"
+#include "db_kbz_storage.h"
 
-inline bool NX_ExpandKbzWeaponModels(NxKbzStorage &storage, XModel **&models, const uint16_t *hideTags)
+inline bool DB_ExpandKbzWeaponModels(KbzStorage &storage, XModel **&models, const uint16_t *hideTags)
 {
     if (!models || static_cast<const void *>(models) != hideTags)
         return true;

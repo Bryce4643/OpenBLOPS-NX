@@ -819,10 +819,9 @@ void __cdecl    Com_ErrorAbort()
     Sys_Error((char*)"%s", com_errorMessage);
 }
 
-#ifdef KISAK_NX
-extern "C" void NX_D3D_HoldDeviceLock(bool hold);
-void Image_NX_AbortImageLoad();
-void NX_KBZ_AbortImageBatch();
+#ifdef KISAK_64BIT
+#include <database/db_kbz.h>
+void Image_Kbz_AbortImageLoad();
 #endif
 void Com_Error(errorParm_t code, const char *fmt, ...)
 {
@@ -830,10 +829,10 @@ void Com_Error(errorParm_t code, const char *fmt, ...)
     int *Value; // eax
     va_list va; // [esp+18h] [ebp+10h] BYREF
 
-#ifdef KISAK_NX
-    NX_D3D_HoldDeviceLock(false);
-    Image_NX_AbortImageLoad();
-    NX_KBZ_AbortImageBatch();
+#ifdef KISAK_64BIT
+    Sys_KbzHoldDeviceLock(false);
+    Image_Kbz_AbortImageLoad();
+    DB_KbzAbortImageBatch();
 #endif
     va_start(va, fmt);
     if ( (code == ERR_DROP || code == ERR_SCRIPT_DROP) && G_ExitAfterToolComplete() )
@@ -898,7 +897,7 @@ void Com_Error(errorParm_t code, const char *fmt, ...)
             TaskManager2_ComErrorCleanup();
             GlassCl_WaitUpdate();
             Value = (int *)Sys_GetValue(2);
-#ifdef KISAK_NX
+#ifdef KISAK_64BIT
             longjmp(*(jmp_buf *)Value, -1);
 #else
             longjmp(Value, -1);
@@ -930,7 +929,7 @@ void __cdecl Com_CheckError()
     if ( errorEntered )
     {
         Value = (int *)Sys_GetValue(2);
-#ifdef KISAK_NX
+#ifdef KISAK_64BIT
         longjmp(*(jmp_buf *)Value, -1);
 #else
         longjmp(Value, -1);
@@ -1822,7 +1821,7 @@ unsigned int __cdecl Com_CalculateStreamBuffer()
 
 void __cdecl Com_Init(char *commandLine)
 {
-    if ( _setjmp((int *)Sys_GetValue(2)) )
+    if ( _setjmp(*(jmp_buf *)Sys_GetValue(2)) )
     {
         Sys_Error(va("Error during initialization:\n%s\n", com_errorMessage));
     }
@@ -1831,7 +1830,7 @@ void __cdecl Com_Init(char *commandLine)
 
     Monkey_Start();
 
-    if ( !_setjmp((int*)Sys_GetValue(2)) )
+    if ( !_setjmp(*(jmp_buf *)Sys_GetValue(2)) )
         Com_AddStartupCommands();
 
 #ifdef KISAK_SP
@@ -1881,7 +1880,7 @@ void __cdecl Com_Init(char *commandLine)
 #ifndef KISAK_DEDICATED
     if (!com_sv_running->current.enabled && !IsDedicatedServer())
     {
-        if (_setjmp((int *)Sys_GetValue(2)))
+        if (_setjmp(*(jmp_buf *)Sys_GetValue(2)))
         {
             Sys_Error(va("Error during initialization:\n%s\n", com_errorMessage));
         }
@@ -3500,7 +3499,7 @@ void __cdecl Com_Frame()
     cl_flame_proftimer.reset();
     Value = Sys_GetValue(2);
     //if ( !_setjmp3(Value, 0) )
-    if ( !_setjmp((int*)Value) )
+    if ( !_setjmp(*(jmp_buf *)Value) )
     {
         Com_CheckSyncFrame();
         Com_Frame_Try_Block_Function();
@@ -3939,7 +3938,7 @@ void Com_StartHunkUsers()
 
     Value = Sys_GetValue(2);
     //if ( _setjmp3(Value, 0) )
-    if (_setjmp((int *)Value))
+    if (_setjmp(*(jmp_buf *)Value))
     {
         Sys_Error((char*)"Error during initialization:\n%s\n", com_errorMessage);
 

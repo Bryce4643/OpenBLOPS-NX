@@ -1,5 +1,5 @@
-// Developer-only D3DX entrypoints; shipped SM3 bytecode is handled by DXVK.
-#include "compat/d3dx9.h"
+// Developer-only D3DX entrypoints; fastfiles carry compiled SM3 bytecode.
+#include "d3dx9.h"
 void *ID3DXBuffer::GetBufferPointer() { return NULL; }
 DWORD ID3DXBuffer::GetBufferSize() { return 0; }
 ULONG ID3DXBuffer::AddRef() { return 1; }

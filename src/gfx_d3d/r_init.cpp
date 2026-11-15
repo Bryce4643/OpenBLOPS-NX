@@ -518,7 +518,7 @@ bool __cdecl R_GetMonitorDimensions(int *width, int *height)
     HMONITOR__ *adapterMonitor; // [esp+28h] [ebp-4h]
 
     adapterMonitor = dx.d3d9->GetAdapterMonitor(dx.adapterIndex);
-    mi.cbSize = 40;
+    mi.cbSize = sizeof(mi);
     if ( GetMonitorInfoA(adapterMonitor, &mi) )
     {
         *width = mi.rcMonitor.right - mi.rcMonitor.left;

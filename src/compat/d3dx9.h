@@ -1,10 +1,11 @@
-// d3dx9.h -- D3DX subset shim. Only the dev/raw-material shader-compile path
-// and screenshot saving use D3DX; all return failure on Switch (fastfile
-// shader loading does not go through D3DX).
-#ifndef NX_COMPAT_D3DX9_H
-#define NX_COMPAT_D3DX9_H
+// d3dx9.h -- D3DX subset for builds without the June 2010 DirectX SDK
+// libraries. Only the dev/raw-material shader-compile path and screenshot
+// saving use D3DX; all return failure (fastfile shader loading does not go
+// through D3DX).
+#ifndef KISAK_COMPAT_D3DX9_H
+#define KISAK_COMPAT_D3DX9_H
 
-#include "d3d9.h"
+#include <d3d9.h>
 
 #define D3DXSHADER_DEBUG            (1 << 0)
 #define D3DXSHADER_SKIPVALIDATION   (1 << 1)
@@ -98,4 +99,4 @@ HRESULT D3DXSaveSurfaceToFileA(LPCSTR destFile, D3DXIMAGE_FILEFORMAT format,
                                IDirect3DSurface9 *surface, const void *palette, const RECT *srcRect);
 #define D3DXSaveSurfaceToFile D3DXSaveSurfaceToFileA
 
-#endif // NX_COMPAT_D3DX9_H
+#endif // KISAK_COMPAT_D3DX9_H

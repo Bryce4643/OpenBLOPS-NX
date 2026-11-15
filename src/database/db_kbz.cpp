@@ -1,8 +1,7 @@
-// Load prelinked LP64 zones and construct their runtime assets.
-#ifdef KISAK_NX
-#include "nx_kbz.h"
-#include "nx_kbz_storage.h"
-#include "nx_kbz_weapons.h"
+// Load prelinked 64-bit zones and construct their runtime assets.
+#include "db_kbz.h"
+#include "db_kbz_storage.h"
+#include "db_kbz_weapons.h"
 #include <cstdio>
 #include <cstdint>
 #include <cstring>
@@ -39,11 +38,6 @@ extern volatile unsigned int g_loadedSize;
 extern int g_trackLoadProgress;
 #include <clientscript/cscr_stringlist.h>
 
-extern "C" void nx_normalize_path(const char *in, char *out, size_t outSize);
-extern "C" const char *nx_get_install_dir(void);
-extern "C" bool NX_D3D_IsTexture(const void *p);
-extern "C" void NX_D3D_HoldDeviceLock(bool hold);
-#include "nx_load_boost.h"
 
 static void kbzProgress(size_t completed, size_t total)
 {
@@ -51,16 +45,38 @@ static void kbzProgress(size_t completed, size_t total)
     constexpr size_t unit = 0x40000;
     if (!completed) {
         g_totalSize = int((total + unit - 1) / unit);
-        __atomic_store_n(&g_loadedSize, 0u, __ATOMIC_SEQ_CST);
+        g_loadedSize = 0;
     } else {
-        __atomic_store_n(&g_loadedSize, unsigned(completed == total
-            ? (total + unit - 1) / unit : completed / unit), __ATOMIC_SEQ_CST);
+        g_loadedSize = unsigned(completed == total ? (total + unit - 1) / unit : completed / unit);
     }
 }
 
-void NX_FreeKbz(XZone *zone)
+// Zone storage currently attached to an XZone, for DB_KbzOwnsAddress.
+static std::mutex s_storageLock;
+static std::vector<const KbzStorage *> s_storages;
+
+bool DB_KbzOwnsAddress(const void *address)
 {
-    NX_FreeKbzStorage(zone->kbz);
+    const uintptr_t p = reinterpret_cast<uintptr_t>(address);
+    std::lock_guard<std::mutex> lock(s_storageLock);
+    for (const KbzStorage *storage : s_storages)
+        for (unsigned i = 0; i < storage->blockCount; ++i)
+        {
+            const uintptr_t base = reinterpret_cast<uintptr_t>(storage->blocks[i]);
+            if (storage->blocks[i] && p >= base && p - base < storage->sizes[i])
+                return true;
+        }
+    return false;
+}
+
+void DB_FreeKbz(XZone *zone)
+{
+    if (zone->kbz)
+    {
+        std::lock_guard<std::mutex> lock(s_storageLock);
+        s_storages.erase(std::remove(s_storages.begin(), s_storages.end(), zone->kbz), s_storages.end());
+    }
+    DB_FreeKbzStorage(zone->kbz);
     zone->kbz = nullptr;
 }
 static XAssetHeader registerAsset(XAssetType type, XAssetHeader h)
@@ -91,18 +107,18 @@ static XAssetHeader registerAsset(XAssetType type, XAssetHeader h)
     }
     return added;
 }
-struct NxPendingFile {
-    NxImageFileData file;
+struct KbzPendingFile {
+    KbzImageFileData file;
     int  externalDataSize;
     bool read;
 };
-struct NxBuildCtx {
+struct KbzBuildCtx {
     uint8_t *const *block;
     const uint32_t *blockSize;
     uint32_t        nblk;
     std::vector<std::pair<const void *, GfxImage *>> builtLoadDefs;
     std::vector<GfxImage *> pendingImages;
-    std::vector<NxPendingFile> pendingFiles;
+    std::vector<KbzPendingFile> pendingFiles;
     std::vector<std::pair<GfxImage *, GfxImage *>> pendingDuplicates;
     size_t   pendingFileBytes = 0;
     unsigned imagesBuilt = 0;
@@ -117,14 +133,14 @@ struct NxBuildCtx {
         return false;
     }
 };
-typedef unsigned (*NxAssetBuilder)(XAssetHeader, NxBuildCtx &);
+typedef unsigned (*KbzAssetBuilder)(XAssetHeader, KbzBuildCtx &);
 
-struct NxBuildStep {
+struct KbzBuildStep {
     XAssetType     type;
-    NxAssetBuilder build;
+    KbzAssetBuilder build;
     const char    *what;   // plural noun, for the summary line
 };
-struct NxRegistered {
+struct KbzRegistered {
     XAssetType   type;
     XAssetHeader header;
 };
@@ -145,7 +161,7 @@ static void fixFrostShader(MaterialPixelShader &shader)
         code[86] = std::bit_cast<DWORD>(1.0e-20f);
 }
 
-static unsigned buildTechniqueSet(XAssetHeader h, NxBuildCtx &)
+static unsigned buildTechniqueSet(XAssetHeader h, KbzBuildCtx &)
 {
     MaterialTechniqueSet *techSet = h.techniqueSet;
     if (!techSet) return 0;
@@ -190,14 +206,14 @@ static bool loadingBehindMenu()
 #ifdef KISAK_SP
     return false;
 #else
-    return NX_LoadBoostBackgroundLoading();
+    return Sys_KbzBackgroundLoading();
 #endif
 }
 
 namespace {
-class NxImageReadPool {
+class KbzImageReadPool {
 public:
-    void read(NxPendingFile *files, size_t count, unsigned helpers)
+    void read(KbzPendingFile *files, size_t count, unsigned helpers)
     {
         std::lock_guard<std::mutex> readLock(m_readMutex);
         {
@@ -205,12 +221,12 @@ public:
             if (m_stopping) {
                 lock.unlock();
                 for (size_t i = 0; i < count; ++i)
-                    files[i].read = Image_NX_ReadFileAnyThread(files[i].file.image, &files[i].file);
+                    files[i].read = Image_Kbz_ReadFileAnyThread(files[i].file.image, &files[i].file);
                 return;
             }
             if (m_threads.empty())
                 for (unsigned i = 0; i < kReaderThreads; ++i)
-                    m_threads.emplace_back(&NxImageReadPool::worker, this, i);
+                    m_threads.emplace_back(&KbzImageReadPool::worker, this, i);
             m_files = files;
             m_count = count;
             m_helpers = helpers;
@@ -249,7 +265,7 @@ private:
     void take()
     {
         for (size_t i; (i = m_next.fetch_add(1)) < m_count; )
-            m_files[i].read = Image_NX_ReadFileAnyThread(m_files[i].file.image, &m_files[i].file);
+            m_files[i].read = Image_Kbz_ReadFileAnyThread(m_files[i].file.image, &m_files[i].file);
     }
     void worker(unsigned index)
     {
@@ -275,7 +291,7 @@ private:
     std::mutex m_readMutex, m_stopMutex, m_mutex;
     std::condition_variable m_wake, m_done;
     std::vector<std::thread> m_threads;
-    NxPendingFile *m_files = nullptr;
+    KbzPendingFile *m_files = nullptr;
     size_t m_count = 0;
     unsigned m_helpers = 0;
     bool m_stopping = false, m_quit = false, m_inflight = false;
@@ -283,28 +299,28 @@ private:
     unsigned m_busy = 0;
     uint64_t m_generation = 0;
 };
-NxImageReadPool &imageReadPool()
+KbzImageReadPool &imageReadPool()
 {
-    static NxImageReadPool &pool = *new NxImageReadPool;
+    static KbzImageReadPool &pool = *new KbzImageReadPool;
     return pool;
 }
 }
 
-void NX_KBZ_StopReaders()
+void DB_KbzStopReaders()
 {
     imageReadPool().stop();
 }
 
-static thread_local NxBuildCtx *s_imageBatch = nullptr;
+static thread_local KbzBuildCtx *s_imageBatch = nullptr;
 
-void NX_KBZ_AbortImageBatch()
+void DB_KbzAbortImageBatch()
 {
-    NxBuildCtx *ctx = s_imageBatch;
+    KbzBuildCtx *ctx = s_imageBatch;
     s_imageBatch = nullptr;
     if (!ctx)
         return;
-    for (NxPendingFile &pending : ctx->pendingFiles)
-        Image_NX_FreeFileData(&pending.file);
+    for (KbzPendingFile &pending : ctx->pendingFiles)
+        Image_Kbz_FreeFileData(&pending.file);
     ctx->pendingFiles.clear();
     ctx->pendingImages.clear();
     ctx->pendingDuplicates.clear();
@@ -312,7 +328,7 @@ void NX_KBZ_AbortImageBatch()
     ctx->pendingFileBytes = 0;
 }
 
-static void flushImages(NxBuildCtx &ctx)
+static void flushImages(KbzBuildCtx &ctx)
 {
     if (!ctx.pendingFiles.empty())
         imageReadPool().read(ctx.pendingFiles.data(), ctx.pendingFiles.size(),
@@ -320,10 +336,10 @@ static void flushImages(NxBuildCtx &ctx)
     s_imageBatch = &ctx;
     if (!ctx.pendingFiles.empty()) {
         for (size_t i = 0; i < ctx.pendingFiles.size(); ++i) {
-            NxPendingFile &pending = ctx.pendingFiles[i];
-            if (!pending.read && !Image_NX_ReadFile(pending.file.image, &pending.file)) {
+            KbzPendingFile &pending = ctx.pendingFiles[i];
+            if (!pending.read && !Image_Kbz_ReadFile(pending.file.image, &pending.file)) {
                 for (size_t j = 0; j < ctx.pendingFiles.size(); ++j)
-                    Image_NX_FreeFileData(&ctx.pendingFiles[j].file);
+                    Image_Kbz_FreeFileData(&ctx.pendingFiles[j].file);
                 GfxImage *image = pending.file.image;
                 ctx.pendingFiles.clear();
                 ctx.pendingImages.clear();
@@ -333,12 +349,12 @@ static void flushImages(NxBuildCtx &ctx)
             }
             DB_LoadedExternalData(pending.externalDataSize);
         }
-        Image_NX_LockImageLoad(true);
-        NX_D3D_HoldDeviceLock(true);
+        Image_Kbz_LockImageLoad(true);
+        Sys_KbzHoldDeviceLock(true);
         for (size_t i = 0; i < ctx.pendingFiles.size(); ++i)
-            Image_NX_CreateFromFileData(&ctx.pendingFiles[i].file);
-        NX_D3D_HoldDeviceLock(false);
-        Image_NX_LockImageLoad(false);
+            Image_Kbz_CreateFromFileData(&ctx.pendingFiles[i].file);
+        Sys_KbzHoldDeviceLock(false);
+        Image_Kbz_LockImageLoad(false);
         ctx.pendingFiles.clear();
         ctx.pendingFileBytes = 0;
     }
@@ -346,8 +362,8 @@ static void flushImages(NxBuildCtx &ctx)
         GfxImage *image = ctx.pendingImages[i];
         if (!image->texture.basemap)
             continue;
-        if (!NX_D3D_IsTexture(image->texture.basemap)) {
-            Com_Error(ERR_DROP, "NX_KBZ: image '%s' upload returned a non-texture %p\n",
+        if (!Sys_KbzIsTexture(image->texture.basemap)) {
+            Com_Error(ERR_DROP, "KBZ: image '%s' upload returned a non-texture %p\n",
                       image->name, (void *)image->texture.basemap);
             return;
         }
@@ -356,7 +372,7 @@ static void flushImages(NxBuildCtx &ctx)
     ctx.pendingImages.clear();
     s_imageBatch = nullptr;
 }
-static void finishImages(NxBuildCtx &ctx)
+static void finishImages(KbzBuildCtx &ctx)
 {
     flushImages(ctx);
     for (size_t i = 0; i < ctx.pendingDuplicates.size(); ++i)
@@ -364,7 +380,7 @@ static void finishImages(NxBuildCtx &ctx)
             ++ctx.imagesBuilt;
     ctx.pendingDuplicates.clear();
 }
-static bool queueFileImage(GfxImage *image, NxBuildCtx &ctx)
+static bool queueFileImage(GfxImage *image, KbzBuildCtx &ctx)
 {
     if (image->texture.loadDef->resourceSize || image->category != 3
         || !r_loadForRenderer || !r_loadForRenderer->current.enabled)
@@ -375,7 +391,7 @@ static bool queueFileImage(GfxImage *image, NxBuildCtx &ctx)
     const int externalDataSize = image->cardMemory.platform[0];
     image->cardMemory.platform[0] = 0;
     image->cardMemory.platform[1] = 0;
-    NxPendingFile pending = {};
+    KbzPendingFile pending = {};
     pending.file.image = image;
     pending.externalDataSize = externalDataSize;
     ctx.pendingFiles.push_back(pending);
@@ -387,7 +403,7 @@ static bool queueFileImage(GfxImage *image, NxBuildCtx &ctx)
         flushImages(ctx);
     return true;
 }
-static void queueImage(XAssetHeader h, NxBuildCtx &ctx)
+static void queueImage(XAssetHeader h, KbzBuildCtx &ctx)
 {
     GfxImage *image = h.image;
     if (!image)
@@ -397,7 +413,7 @@ static void queueImage(XAssetHeader h, NxBuildCtx &ctx)
     if (!ctx.inBlocks(loadDef))
         return;
     if (r_loadForRenderer && r_loadForRenderer->current.enabled && !dx.device) {
-        Com_Error(ERR_DROP, "NX_KBZ: cannot upload image '%s': no D3D device\n", image->name);
+        Com_Error(ERR_DROP, "KBZ: cannot upload image '%s': no D3D device\n", image->name);
         return;
     }
     for (size_t i = 0; i < ctx.builtLoadDefs.size(); ++i)
@@ -410,13 +426,13 @@ static void queueImage(XAssetHeader h, NxBuildCtx &ctx)
         return;
     const bool holdDevice = image->texture.loadDef->resourceSize != 0 || image->category == 5;
     if (holdDevice)
-        NX_D3D_HoldDeviceLock(true);
+        Sys_KbzHoldDeviceLock(true);
     Load_Texture(&image->texture, image);
     if (holdDevice)
-        NX_D3D_HoldDeviceLock(false);
+        Sys_KbzHoldDeviceLock(false);
     ctx.pendingImages.push_back(image);
 }
-static unsigned buildGfxWorld(XAssetHeader h, NxBuildCtx &)
+static unsigned buildGfxWorld(XAssetHeader h, KbzBuildCtx &)
 {
     GfxWorld *world = h.gfxWorld;
     if (!world)
@@ -435,16 +451,16 @@ static unsigned buildGfxWorld(XAssetHeader h, NxBuildCtx &)
     return built;
 }
 
-static const NxBuildStep kBuildSteps[] = {
+static const KbzBuildStep kBuildSteps[] = {
     { ASSET_TYPE_TECHNIQUE_SET, buildTechniqueSet, "shader/vertex-decl objects" },
     { ASSET_TYPE_GFXWORLD,      buildGfxWorld,     "world vertex buffers" },
 };
 static void buildRuntimeObjects(const char *path,
-                                const std::vector<NxRegistered> &registered,
-                                NxBuildCtx &ctx)
+                                const std::vector<KbzRegistered> &registered,
+                                KbzBuildCtx &ctx)
 {
     for (unsigned step = 0; step < ARRAY_COUNT(kBuildSteps); ++step) {
-        const NxBuildStep *bs = &kBuildSteps[step];
+        const KbzBuildStep *bs = &kBuildSteps[step];
         unsigned built = 0, visited = 0;
 
         for (size_t i = 0; i < registered.size(); ++i) {
@@ -454,12 +470,12 @@ static void buildRuntimeObjects(const char *path,
         }
 
         if (visited)
-            Com_Printf(16, "NX_KBZ: '%s' built %u %s over %u assets of type %d\n",
+            Com_Printf(16, "KBZ: '%s' built %u %s over %u assets of type %d\n",
                        path, built, bs->what, visited, (int)bs->type);
     }
 }
-static void auditMaterialImages(const char *path, const std::vector<NxRegistered> &registered,
-                                NxBuildCtx &ctx)
+static void auditMaterialImages(const char *path, const std::vector<KbzRegistered> &registered,
+                                KbzBuildCtx &ctx)
 {
     unsigned checked = 0, bad = 0;
     for (size_t i = 0; i < registered.size(); ++i) {
@@ -477,10 +493,10 @@ static void auditMaterialImages(const char *path, const std::vector<NxRegistered
                 continue;
             ++checked;
             const void *tex = img->texture.basemap;
-            if (!tex || NX_D3D_IsTexture(tex))
+            if (!tex || Sys_KbzIsTexture(tex))
                 continue;
             if (++bad <= 12)
-                printf("[nx-kbz] audit '%s': material '%s' texture %u image '%s' holds %p, not a "
+                printf("[kbz] audit '%s': material '%s' texture %u image '%s' holds %p, not a "
                        "texture | image is %s, what it holds is %s\n",
                        path, m->info.name ? m->info.name : "?", t,
                        img->name ? img->name : "?", tex,
@@ -488,33 +504,33 @@ static void auditMaterialImages(const char *path, const std::vector<NxRegistered
                        ctx.inBlocks(tex) ? "in this zone's blocks" : "outside this zone");
         }
     }
-    printf("[nx-kbz] audit '%s': %u material textures checked, %u not textures\n",
+    printf("[kbz] audit '%s': %u material textures checked, %u not textures\n",
            path, checked, bad);
     fflush(stdout);
 }
-struct NxImageAudit { unsigned checked = 0, bad = 0; };
+struct KbzImageAudit { unsigned checked = 0, bad = 0; };
 
 static void auditDatabaseImage(XAssetHeader h, void *data)
 {
-    NxImageAudit &audit = *static_cast<NxImageAudit *>(data);
+    KbzImageAudit &audit = *static_cast<KbzImageAudit *>(data);
     const GfxImage *image = h.image;
     if (!image) return;
     ++audit.checked;
-    if (image->texture.basemap && !NX_D3D_IsTexture(image->texture.basemap)) {
+    if (image->texture.basemap && !Sys_KbzIsTexture(image->texture.basemap)) {
         if (++audit.bad <= 16)
-            Com_PrintError(10, "[nx-kbz] invalid image after overrides: '%s' texture=%p\n",
+            Com_PrintError(10, "[kbz] invalid image after overrides: '%s' texture=%p\n",
                            image->name, (void *)image->texture.basemap);
     }
 }
 
-extern "C" void NX_KBZ_ValidateImages()
+void DB_KbzValidateImages()
 {
-    NxImageAudit audit;
+    KbzImageAudit audit;
     DB_EnumXAssets(ASSET_TYPE_IMAGE, auditDatabaseImage, &audit, true);
-    Com_Printf(16, "[nx-kbz] image check after overrides: %u entries, %u invalid\n",
+    Com_Printf(16, "[kbz] image check after overrides: %u entries, %u invalid\n",
                audit.checked, audit.bad);
     if (audit.bad)
-        Com_Error(ERR_DROP, "NX_KBZ: %u unbuilt images after zone overrides; see kisakblack.log\n", audit.bad);
+        Com_Error(ERR_DROP, "KBZ: %u unbuilt images after zone overrides; see kisakblack.log\n", audit.bad);
 }
 class AssetSlots
 {
@@ -607,7 +623,7 @@ static const uint8_t *remapScriptStrings(const char *path, const uint8_t *p, con
         else v = ids[v];
         memcpy(block[b] + off, &v, 2);
     }
-    Com_Printf(16, "NX_KBZ: '%s' %u script strings, %u slots remapped (%u out of range)\n",
+    Com_Printf(16, "KBZ: '%s' %u script strings, %u slots remapped (%u out of range)\n",
                path, count, slots, bad);
     return p;
 }
@@ -628,10 +644,10 @@ static void resolveFxRefs(const char *path, const uint8_t *p, const uint8_t *end
         memcpy(block[b] + off, &h.data, sizeof(void *));
         ++resolved;
     }
-    Com_Printf(16, "NX_KBZ: '%s' %u effect refs resolved (%u slots, %u bad)\n", path, resolved, count, bad);
+    Com_Printf(16, "KBZ: '%s' %u effect refs resolved (%u slots, %u bad)\n", path, resolved, count, bad);
 }
 
-static int loadKbzImage(const char *path, NxKbzStorage &storage)
+static int loadKbzImage(const char *path, KbzStorage &storage)
 {
     uint8_t **block = storage.blocks;
     const uint32_t *blockSize = storage.sizes;
@@ -641,13 +657,11 @@ static int loadKbzImage(const char *path, NxKbzStorage &storage)
     const uint8_t *p = storage.metadata;
     const uint8_t *end = p + storage.metadataSize;
 
-#ifdef KISAK_NX
     for (uint32_t i = 0; i < nblk; ++i)
         if (block[i])
-            printf("[nx-kbz] '%s' block %u = [%p, %p) %u bytes\n",
+            printf("[kbz] '%s' block %u = [%p, %p) %u bytes\n",
                    path, i, (void *)block[i], (void *)(block[i] + blockSize[i]), blockSize[i]);
     fflush(stdout);
-#endif
     const uint8_t *relocTable = p;
     for (uint32_t i = 0; i < relocCount; ++i) {
         if (p + 10 > end) break;
@@ -658,7 +672,7 @@ static int loadKbzImage(const char *path, NxKbzStorage &storage)
         void *tgt = block[tb] + to;
         memcpy(block[sb] + so, &tgt, sizeof(void *));
     }
-    Com_Printf(16, "NX_KBZ: relocs applied, registering %u assets\n", assetCount);
+    Com_Printf(16, "KBZ: relocs applied, registering %u assets\n", assetCount);
     const uint8_t *assetTable = p;
     for (uint32_t i = 0; i < assetCount; ++i) {
         const uint8_t *entry = assetTable + size_t(i) * 9;
@@ -668,8 +682,8 @@ static int loadKbzImage(const char *path, NxKbzStorage &storage)
         if (type != ASSET_TYPE_WEAPON) continue;
         auto *weapon = reinterpret_cast<WeaponVariantDef *>(block[entry[4]] + offset);
         if (weapon->weapDef
-            && (!NX_ExpandKbzWeaponModels(storage, weapon->weapDef->gunXModel, weapon->hideTags)
-                || !NX_ExpandKbzWeaponModels(storage, weapon->weapDef->worldModel, weapon->hideTags)))
+            && (!DB_ExpandKbzWeaponModels(storage, weapon->weapDef->gunXModel, weapon->hideTags)
+                || !DB_ExpandKbzWeaponModels(storage, weapon->weapDef->worldModel, weapon->hideTags)))
             return -1;
     }
     const uint8_t *fxRefSection = nullptr;
@@ -679,7 +693,7 @@ static int loadKbzImage(const char *path, NxKbzStorage &storage)
         fxRefSection = nullptr;
     AssetSlots slots;
     slots.collect(assetTable, end, assetCount, relocTable, relocCount, block, blockSize, nblk);
-    NxBuildCtx ctx;
+    KbzBuildCtx ctx;
     ctx.block = block;
     ctx.blockSize = blockSize;
     ctx.nblk = nblk;
@@ -697,7 +711,7 @@ static int loadKbzImage(const char *path, NxKbzStorage &storage)
     }
     finishImages(ctx);
     const unsigned imagesBuilt = ctx.imagesBuilt;
-    std::vector<NxRegistered> registered;
+    std::vector<KbzRegistered> registered;
     registered.reserve(assetCount);
     for (uint32_t i = 0; i < assetCount; ++i) {
         if (p + 9 > end) break;
@@ -708,14 +722,14 @@ static int loadKbzImage(const char *path, NxKbzStorage &storage)
         h.data = block[ab] + ao;
         XAssetHeader added = registerAsset((XAssetType)type, h);
         slots.redirect(h.data, added.data);
-        NxRegistered rec = { (XAssetType)type, added };
+        KbzRegistered rec = { (XAssetType)type, added };
         registered.push_back(rec);
     }
     if (imagesVisited)
-        Com_Printf(16, "NX_KBZ: '%s' built %u textures over %u images BEFORE registration (including overrides)\n",
+        Com_Printf(16, "KBZ: '%s' built %u textures over %u images BEFORE registration (including overrides)\n",
                    path, imagesBuilt, imagesVisited);
     if (slots.slotCount())
-        Com_Printf(16, "NX_KBZ: '%s' redirected %u of %u reference slots to pool entries"
+        Com_Printf(16, "KBZ: '%s' redirected %u of %u reference slots to pool entries"
                        " (%u assets moved, %u referenced by nothing)\n",
                    path, slots.moved(), slots.slotCount(),
                    slots.assetsMoved(), slots.assetsUnreferenced());
@@ -723,29 +737,29 @@ static int loadKbzImage(const char *path, NxKbzStorage &storage)
     buildRuntimeObjects(path, registered, ctx);
     auditMaterialImages(path, registered, ctx);
 
-    Com_Printf(16, "NX_TryLoadKbz: loaded '%s' (%u assets, %u relocs)\n",
+    Com_Printf(16, "DB_TryLoadKbz: loaded '%s' (%u assets, %u relocs)\n",
                path, assetCount, relocCount);
     return 1;
 }
-int NX_TryLoadKbz(const char *zoneName, const char *ffFilename, XZone *zone)
+int DB_TryLoadKbz(const char *zoneName, const char *ffFilename, XZone *zone)
 {
     char cand[2][512];
     int nCand = 0;
-    snprintf(cand[nCand++], 512, "%s/kbz/%s.kbz", nx_get_install_dir(), zoneName);
+    snprintf(cand[nCand++], 512, "%s/kbz/%s.kbz", Sys_KbzInstallDir(), zoneName);
     {
         char *dst = cand[nCand];
-        nx_normalize_path(ffFilename, dst, 512);
+        Sys_KbzNativePath(ffFilename, dst, 512);
         size_t len = strlen(dst);
         if (len >= 3 && !strcmp(dst + len - 3, ".ff")) { strcpy(dst + len - 3, ".kbz"); nCand++; }
         else if (len + 5 < 512)                        { strcat(dst, ".kbz"); nCand++; }
     }
 
     for (int i = 0; i < nCand; ++i) {
-        NxKbzStorage *storage = nullptr;
-        const int result = NX_ReadKbz(cand[i], &storage, kbzProgress);
+        KbzStorage *storage = nullptr;
+        const int result = DB_ReadKbz(cand[i], &storage, kbzProgress);
         if (!result) continue;
         if (result < 0) {
-            Com_PrintError(10, "NX_TryLoadKbz: cannot read '%s'\n", cand[i]);
+            Com_PrintError(10, "DB_TryLoadKbz: cannot read '%s'\n", cand[i]);
             return -1;
         }
         const uint8_t *asset = storage->metadata + size_t(storage->relocCount) * 10;
@@ -755,12 +769,16 @@ int NX_TryLoadKbz(const char *zoneName, const char *ffFilename, XZone *zone)
             memcpy(&offset, asset + 5, 4);
             if (type >= ASSET_TYPE_COUNT || uint32_t(DB_GetXAssetTypeSize(XAssetType(type)))
                 > storage->sizes[asset[4]] - offset) {
-                NX_FreeKbzStorage(storage);
-                Com_PrintError(10, "NX_TryLoadKbz: invalid asset in '%s'\n", cand[i]);
+                DB_FreeKbzStorage(storage);
+                Com_PrintError(10, "DB_TryLoadKbz: invalid asset in '%s'\n", cand[i]);
                 return -1;
             }
         }
         zone->kbz = storage;
+        {
+            std::lock_guard<std::mutex> lock(s_storageLock);
+            s_storages.push_back(storage);
+        }
         const int loaded = loadKbzImage(cand[i], *storage);
         free(storage->metadata);
         storage->metadata = nullptr;
@@ -770,4 +788,3 @@ int NX_TryLoadKbz(const char *zoneName, const char *ffFilename, XZone *zone)
     return 0;
 }
 
-#endif // KISAK_NX

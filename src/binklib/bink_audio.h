@@ -4,11 +4,11 @@
 #include <cstdint>
 #include <mutex>
 
-class NxBinkAudio
+class BinkAudioQueue
 {
 public:
     static constexpr unsigned Rate = 48000;
-    ~NxBinkAudio();
+    ~BinkAudioQueue();
     bool initialize(size_t frames);
     bool add(const float *samples, size_t frames, uint64_t first, float volume);
     void start();
@@ -26,8 +26,12 @@ private:
     bool started = false, paused = false, mixed = false;
 };
 
-bool NX_AttachCinematicAudio(NxBinkAudio *audio);
-void NX_DetachCinematicAudio(NxBinkAudio *audio);
-uint64_t NX_BinkTimeUs();
-void NX_BinkInitClock();
-bool NX_BinkHasFocus();
+// Implemented by the platform sound driver: mixes the queue into the output.
+bool Snd_AttachCinematicAudio(BinkAudioQueue *audio);
+void Snd_DetachCinematicAudio(BinkAudioQueue *audio);
+
+// Implemented by the platform: the movie clock in microseconds, which stops
+// while the game is in the background.
+uint64_t Sys_BinkTimeUs();
+void Sys_BinkInitClock();
+bool Sys_BinkHasFocus();

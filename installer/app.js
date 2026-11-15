@@ -204,7 +204,7 @@ function convert(worker, file, pack = false) {
 }
 
 // Executables that load packed (zstd) zones carry this marker
-// (src/nx/nx_kbz_storage.cpp); zones are packed only for those.
+// (src/database/db_kbz_storage.cpp); zones are packed only for those.
 const PACKED_ZONE_MARKER = new TextEncoder().encode('openblops-kbzz-1');
 
 function contains(bytes, needle) {

@@ -47,8 +47,6 @@ file(GLOB NX_SOURCES CONFIGURE_DEPENDS
 if(NX_DXVK)
     list(REMOVE_ITEM NX_SOURCES "${NX_DIR}/nx_d3d9_null.cpp"
         "${NX_DIR}/nx_d3d9_shader.cpp" "${NX_DIR}/nx_gl_mesa20.cpp")
-else()
-    list(REMOVE_ITEM NX_SOURCES "${NX_DIR}/nx_d3dx_helpers.cpp")
 endif()
 get_target_property(KB_SOURCES ${BIN_NAME} SOURCES)
 
@@ -59,8 +57,6 @@ set(NX_EXCLUDED_SOURCES
     "${SRC_DIR}/win32/win_splash.cpp"             # splash window -> nx_platform_stubs
     "${SRC_DIR}/win32/win_syscon.cpp"             # Win32 console dialog -> nx_platform_stubs
     "${SRC_DIR}/win32/win_voice.cpp"              # waveIn/mixer voice chat -> nx_platform_stubs
-    "${SRC_DIR}/binklib/dx9rad3d.cpp"             # Bink RAD3D-over-D3D9 (unreferenced)
-    "${SRC_DIR}/binklib/binktextures.cpp"         # Texture uploads are handled by r_cinematic
     "${SRC_DIR}/sound/snd_driver_xaudio2.cpp"     # XAudio2 driver -> nx_snd
     "${SRC_DIR}/sound/snd_driver_xaudio2_dsp.cpp" # XAPO DSP effects -> nx_snd
     "${SRC_DIR}/groupvoice/play_dsound.cpp"       # DirectSound playback -> stubs
@@ -70,6 +66,19 @@ set(NX_EXCLUDED_SOURCES
 list(REMOVE_ITEM KB_SOURCES ${NX_EXCLUDED_SOURCES})
 list(APPEND KB_SOURCES ${NX_SOURCES})
 set_target_properties(${BIN_NAME} PROPERTIES SOURCES "${KB_SOURCES}")
+
+# 64-bit asset layout, zone loader and SDK stand-ins shared with the other
+# 64-bit platforms. The null renderer carries its own D3DX entry points.
+set(OPENBLOPS_SSE_EMULATION ON)
+include("${CMAKE_CURRENT_LIST_DIR}/engine64.cmake")
+# Bink through the static FFmpeg below, which exposes its decoders directly.
+include("${CMAKE_CURRENT_LIST_DIR}/bink-ffmpeg.cmake")
+target_compile_definitions(${BIN_NAME} PUBLIC KISAK_FFMPEG_STATIC_DECODERS)
+if(NOT NX_DXVK)
+    get_target_property(KB_SOURCES ${BIN_NAME} SOURCES)
+    list(REMOVE_ITEM KB_SOURCES "${SRC_DIR}/compat/compat_d3dx9.cpp")
+    set_target_properties(${BIN_NAME} PROPERTIES SOURCES "${KB_SOURCES}")
+endif()
 
 # ----- Preprocessor defines -----
 # NX_SP: build the single-player executable (campaign and Zombies, from the
@@ -148,7 +157,14 @@ target_compile_options(${BIN_NAME} PRIVATE
 #
 # Keep the list additive. Removing a file from it is a regression.
 # Closing the LP64 sanitiser class one subsystem at a time.
-set(NX_SANITIZED_SOURCES ${NX_SOURCES})
+set(NX_SANITIZED_SOURCES ${NX_SOURCES}
+    "${SRC_DIR}/database/db_kbz.cpp"
+    "${SRC_DIR}/database/db_kbz_storage.cpp"
+    "${SRC_DIR}/compat/compat_d3dx9.cpp"
+    "${SRC_DIR}/compat/compat_sdk.cpp"
+    "${SRC_DIR}/binklib/bink_ffmpeg.cpp"
+    "${SRC_DIR}/binklib/bink_audio.cpp"
+)
 list(FILTER NX_SANITIZED_SOURCES INCLUDE REGEX "\.(c|cpp)$")
 
 # Graduated decompiled sources, newest last.

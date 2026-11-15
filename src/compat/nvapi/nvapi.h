@@ -1,11 +1,11 @@
-// nvapi.h -- NVAPI stub declarations for the Switch build (shadows
-// src/nvapi/nvapi.h via include-path priority). All functions are
-// implemented in src/nx/nx_stubs.cpp and fail, which routes the renderer
-// down its vanilla non-NVIDIA paths.
-#ifndef NX_COMPAT_NVAPI_H
-#define NX_COMPAT_NVAPI_H
+// nvapi.h -- NVAPI stub declarations for builds without the NVAPI library
+// (shadows src/nvapi/nvapi.h via include-path priority). All functions are
+// implemented in src/compat/compat_sdk.cpp and fail, which routes the
+// renderer down its vanilla non-NVIDIA paths.
+#ifndef KISAK_COMPAT_NVAPI_H
+#define KISAK_COMPAT_NVAPI_H
 
-#include "../windows.h"
+#include <windows.h>
 
 typedef unsigned char  NvU8;
 typedef unsigned short NvU16;
@@ -66,4 +66,4 @@ NVAPI_INTERFACE NvAPI_D3D9_StretchRect(void *device, NVDX_ObjectHandle src, cons
                                        NVDX_ObjectHandle dst, const RECT *dstRect, int filter);
 NVAPI_INTERFACE NvAPI_D3D_GetCurrentSLIState(void *device, NV_GET_CURRENT_SLI_STATE *sliState);
 
-#endif // NX_COMPAT_NVAPI_H
+#endif // KISAK_COMPAT_NVAPI_H

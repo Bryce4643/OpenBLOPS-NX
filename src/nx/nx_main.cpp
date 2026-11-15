@@ -5,8 +5,8 @@
 #include "nx_install.h"
 #include "nx_update.h"
 #include "nx_load_boost.h"
-#include "nx_kbz.h"
-#include "nx_bink_audio.h"
+#include <database/db_kbz.h>
+#include <binklib/bink_audio.h>
 #include "nx_saltynx.h"
 #include <universal/local_player_name.h>
 #include <universal/profile.h>
@@ -882,7 +882,7 @@ extern "C" void NX_PrepareExit(void)
     nxExitStep("SD_Shutdown");
     SD_Shutdown();
     nxExitStep("stopping texture readers");
-    NX_KBZ_StopReaders();
+    DB_KbzStopReaders();
 #ifdef NX_DXVK
     NX_DxvkRequestStop();
 #else
@@ -971,7 +971,7 @@ int main(int argc, char **argv)
     NX_DxvkConfigure(s_nroPath[0] ? s_nroPath : NX_GAME_DIR "/" NX_GAME_NRO);
 #endif
     NX_LoadBoostInit();
-    NX_BinkInitClock();
+    Sys_BinkInitClock();
     atexit(NX_LoadBoostExit);
 
     nx_wincompat_init_main_thread();

@@ -1061,7 +1061,7 @@ void __cdecl    G_InitGame(int levelTime, int randomSeed, int restart, int regis
         g_scr_data.init_mode_sp = 0;
 #endif
         memset(&bgs->animData->animScriptData, 0, sizeof(animScriptData_t)/*0x8D388u*/);
-#ifndef KISAK_NX // nx-port: x86 layout assert
+#ifndef KISAK_64BIT // nx-port: x86 layout assert
         static_assert(sizeof(animScriptData_t) == 0x8D388);
 #endif
 

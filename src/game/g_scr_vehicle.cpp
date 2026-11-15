@@ -3363,7 +3363,7 @@ void __cdecl G_SpawnVehicle(gentity_s *ent, char *typeName, int load)
     static colgeom_visitor_inlined_t<200> dummy_0;
 
     //veh->vehicle_cache.proximity_data.__vftable = dummy_0.__vftable;
-#if defined(KISAK_SP) || defined(KISAK_NX)
+#if defined(KISAK_SP) || defined(KISAK_64BIT)
     // RESTORE THE VTABLE POINTER. The memset above zeroes all of vehicle_cache_t, which includes
     // the embedded colgeom_visitor_inlined_t<200> -- and that object is POLYMORPHIC, so the
     // memset destroys its vptr. The `= dummy_0` on the next line cannot put it back: it

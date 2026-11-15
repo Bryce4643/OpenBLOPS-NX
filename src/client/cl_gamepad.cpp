@@ -694,7 +694,7 @@ void __cdecl CL_GamepadButtonEvent(
                 {
                     Demo_HandleInput(localClientNum, controllerIndex, key, pressed);
                     if (
-#ifdef KISAK_NX
+#ifdef KISAK_64BIT
                         // L3+R3 with both triggers held: an Xbox Live developer
                         // combo that asks Live_GetTier for the tier. There is no
                         // Live service here, and no safe way to ask -- both
