@@ -41,6 +41,9 @@
 #include "g_load_utils.h"
 #include <cgame/cg_scr_main.h>
 #include <sound/snd_bank.h>
+#ifdef KISAK_SP
+#include <game_mp/g_scr_main_mp.h>
+#endif
 
 
 #ifdef KISAK_SP
@@ -5798,9 +5801,34 @@ void __cdecl Scr_Vehicle_Think(gentity_s *pSelf)
             defaultPitch = vehHelicopterDefaultPitch->current.value;
         veh->phys.angles[0] = veh->phys.angles[0] + defaultPitch;
     }
+#ifdef KISAK_SP
+    // Retail 0x678B97: scripted animations drive the vehicle physics state.
+    if ( (pSelf->flags & FL_SUPPORTS_ANIMSCRIPTED) != 0 && pSelf->scriptedAnim_SP )
+    {
+        GScr_UpdateScriptedAnim_SP(pSelf);
+        vehicle_physic_t *phys = &veh->phys;
+        for ( int i = 0; i < 3; ++i )
+        {
+            phys->origin[i] = pSelf->r.currentOrigin[i];
+            phys->angles[i] = pSelf->r.currentAngles[i];
+        }
+        for ( int i = 0; i < 3; ++i )
+        {
+            phys->vel[i] = (phys->origin[i] - phys->prevOrigin[i]) * 20.0f;
+            phys->rotVel[i] = (phys->angles[i] - phys->prevAngles[i]) * 20.0f;
+        }
+    }
+#endif
     nitrousVeh = pSelf->scr_vehicle->nitrousVehicle;
     if ( nitrousVeh && nitrousVeh->m_phys_user_data )
-        VEH_UpdateNitrousPosition(pSelf);
+    {
+#ifdef KISAK_SP
+        if ( pSelf->scriptedAnim_SP )
+            VEH_Teleport(pSelf, veh->phys.origin, veh->phys.angles, veh->phys.vel);
+        else
+#endif
+            VEH_UpdateNitrousPosition(pSelf);
+    }
     else
         VEH_SetPosition(pSelf, veh->phys.origin, veh->phys.vel, veh->phys.angles);
     if ( (veh->flags & 2) != 0 )
