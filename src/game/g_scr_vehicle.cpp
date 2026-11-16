@@ -7581,9 +7581,12 @@ void __cdecl VEH_UpdateMoveToGoal(gentity_s *ent, const float *goalPos)
     float axis[3][3]; // [esp+88h] [ebp-DCh] BYREF
     float dotVec[2]; // [esp+ACh] [ebp-B8h] BYREF
     float dt; // [esp+B4h] [ebp-B0h]
-    float v17; // [esp+B8h] [ebp-ACh] BYREF
-    float v18; // [esp+BCh] [ebp-A8h]
-    float v19; // [esp+C0h] [ebp-A4h]
+    // The unit direction to the goal, [esp+B8h..C0h]. One array: it is passed
+    // to VEH_UpdateMoveOrientation as a 3-component vector, and three separate
+    // locals left [1] and [2] reading whatever the compiler put next to [0]
+    // (a garbage or NaN yaw: helicopters turned to random facings, and a NaN
+    // crashed in SV_LinkEntity).
+    float goalDir[3];
     float newVerticalSpeed; // [esp+C4h] [ebp-A0h] BYREF
     float startMoveAngle; // [esp+C8h] [ebp-9Ch]
     float desiredVel[3]; // [esp+CCh] [ebp-98h]
@@ -7687,15 +7690,15 @@ void __cdecl VEH_UpdateMoveToGoal(gentity_s *ent, const float *goalPos)
         VEH_GetNewSpeedAndAccel(veh, dt, hovering, 0.5, &newVerticalSpeed, &accelMax);
         if ( info->type == 6 && newVerticalSpeed > (float)(vehHelicopterMaxSpeedVertical->current.value * 17.6) )
             newVerticalSpeed = vehHelicopterMaxSpeedVertical->current.value * 17.6;
-        v17 = (float)(1.0 / distToGoal) * vecToGoal[0];
-        v18 = (float)(1.0 / distToGoal) * vecToGoal[1];
-        v19 = (float)(1.0 / distToGoal) * vecToGoal[2];
-        desiredVel[0] = newSpeed * v17;
-        desiredVel[1] = newSpeed * v18;
-        desiredVel[2] = v19 * newVerticalSpeed;
-        accelVec[0] = (float)(newSpeed * v17) - prevVel[0];
-        accelVec[1] = (float)(newSpeed * v18) - prevVel[1];
-        accelVec[2] = (float)(v19 * newVerticalSpeed) - prevVel[2];
+        goalDir[0] = (float)(1.0 / distToGoal) * vecToGoal[0];
+        goalDir[1] = (float)(1.0 / distToGoal) * vecToGoal[1];
+        goalDir[2] = (float)(1.0 / distToGoal) * vecToGoal[2];
+        desiredVel[0] = newSpeed * goalDir[0];
+        desiredVel[1] = newSpeed * goalDir[1];
+        desiredVel[2] = goalDir[2] * newVerticalSpeed;
+        accelVec[0] = (float)(newSpeed * goalDir[0]) - prevVel[0];
+        accelVec[1] = (float)(newSpeed * goalDir[1]) - prevVel[1];
+        accelVec[2] = (float)(goalDir[2] * newVerticalSpeed) - prevVel[2];
         if ( !veh->stopping
             && veh->manualSpeed >= veh->speed
             && (float)((float)(prevVel[0] * desiredVel[0]) + (float)(prevVel[1] * desiredVel[1])) > 0.0
@@ -7788,7 +7791,7 @@ void __cdecl VEH_UpdateMoveToGoal(gentity_s *ent, const float *goalPos)
         phys->origin[1] = (float)(dt * averageVel[1]) + phys->origin[1];
         phys->origin[2] = (float)(dt * averageVel[2]) + phys->origin[2];
         if ( info->type != 2 )
-            VEH_UpdateMoveOrientation(ent, &v17);
+            VEH_UpdateMoveOrientation(ent, goalDir);
         if ( info->type == 6 )
             VEH_UpdateVelocityWithRotation(ent);
         if ( info->type == 2 )
