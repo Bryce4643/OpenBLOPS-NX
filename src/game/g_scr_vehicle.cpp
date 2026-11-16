@@ -7678,7 +7678,11 @@ void __cdecl VEH_UpdateMoveToGoal(gentity_s *ent, const float *goalPos)
         if ( startMoveAngle <= fabs(angleDiff) )
             speedScale = 0.0f;
         else
-            speedScale = 1.0 - (float)(angleDiff / startMoveAngle);
+            // The size of the angle, as the test above: a signed angle took a
+            // vehicle turned one way up to twice its set speed (Rebirth's stealth
+            // helicopter flew sideways at 1.68x, reached its path point before
+            // its spotlight sweep ended and the mission waited forever).
+            speedScale = 1.0 - (float)(fabs(angleDiff) / startMoveAngle);
         VEH_GetNewSpeedAndAccel(veh, dt, hovering, speedScale, &newSpeed, &accelMax);
         VEH_GetNewSpeedAndAccel(veh, dt, hovering, 0.5, &newVerticalSpeed, &accelMax);
         if ( info->type == 6 && newVerticalSpeed > (float)(vehHelicopterMaxSpeedVertical->current.value * 17.6) )
