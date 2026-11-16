@@ -3878,7 +3878,9 @@ LABEL_24:
                 }
                 else if ( connstate >= CA_CONNECTING )
                 {
-                    Com_DPrintf(13, "PC ONLY: No menu has focus and %s, what should I do?", (const char *)connstate);
+                    // connstate is the connection state number, not a string: printing it as
+                    // %s read address 5 and crashed whenever developer messages were on.
+                    Com_DPrintf(13, "PC ONLY: No menu has focus and connection state %i, what should I do?", (int)connstate);
                 }
                 else
                 {
