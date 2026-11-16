@@ -1690,7 +1690,7 @@ void __cdecl Com_CheckSetRecommended(int localClientNum)
 // a choice made in the options afterwards stands.
 static void Com_NX_ApplySettingsRevisions()
 {
-    const int latestRevision = 2;
+    const int latestRevision = 3;
     const dvar_s *nx_settingsRevision = _Dvar_RegisterInt(
         "nx_settingsRevision", 0, 0, 1000, 1u, "Last revision of the Switch default settings applied to config.cfg");
     const int appliedRevision = nx_settingsRevision->current.integer;
@@ -1711,6 +1711,14 @@ static void Com_NX_ApplySettingsRevisions()
         // Earlier releases saved cg_drawFPS "Simple" and hid it behind an
         // options toggle; the counter now follows cg_drawFPS as in retail.
         Dvar_SetIntByName("cg_drawFPS", 0);
+    }
+    if ( appliedRevision < 3 )
+    {
+        // The FPS LIMIT option (nx_fpsLimit) defaults to 60 FPS. It used to
+        // default to -1, following com_maxfps; a limit picked in the options
+        // stays.
+        if ( Dvar_GetInt("nx_fpsLimit") < 0 )
+            Dvar_SetIntByName("nx_fpsLimit", 60);
     }
 
     Dvar_SetInt((dvar_s *)nx_settingsRevision, latestRevision);
@@ -2613,7 +2621,7 @@ void Com_InitDvars()
     com_maxfps = _Dvar_RegisterInt("com_maxfps", 85, 0, 1000, 1u, "Cap frames per second");
 #endif
 #ifdef KISAK_NX
-    nx_fpsLimit = _Dvar_RegisterInt("nx_fpsLimit", -1, -1, 1000, 1u, "Switch frame rate limit (-1 uses com_maxfps, 0 is unlimited)");
+    nx_fpsLimit = _Dvar_RegisterInt("nx_fpsLimit", 60, -1, 1000, 1u, "Switch frame rate limit (-1 uses com_maxfps, 0 is unlimited)");
     nx_splog = _Dvar_RegisterBool("nx_splog", 0, 0, "Log the SP bring-up traces (lines starting \"SP \")");
 #endif
     arcademode = _Dvar_RegisterBool("arcademode", 0, 0x100u, "Current game is an arcade mode game");
