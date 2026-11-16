@@ -2905,6 +2905,7 @@ void __cdecl Com_WriteConfigToFile(int localClientNum, char *filename)
 #else
         Gamepad_WriteBindings(localClientNum, f);
 #endif
+        Directory_BeforeConfigWrite();
         Dvar_WriteVariables(f);
         Con_WriteFilterConfigString(f);
         FS_FCloseFile(f);

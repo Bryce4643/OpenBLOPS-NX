@@ -5,6 +5,8 @@ struct menuDef_t;
 struct itemDef_s;
 #if defined(OPENBLOPS_NO_STEAM_AUTH)
 void Directory_Init();
+// Keeps an old build's saved directory address out of the config being written.
+void Directory_BeforeConfigWrite();
 void Directory_MenuOpening(int localClientNum, UiContext *dc, menuDef_t *menu);
 bool Directory_HandleMenuEvent(int localClientNum, UiContext *dc, itemDef_s *item, const char *event);
 bool Directory_HandleControllerKey(int localClientNum, UiContext *dc, menuDef_t *menu, int key);
@@ -60,6 +62,9 @@ inline const char *Directory_BrowserMenu(const char *name)
     return name;
 }
 inline void Directory_Init()
+{
+}
+inline void Directory_BeforeConfigWrite()
 {
 }
 inline bool Directory_PopulateServers(int, int)

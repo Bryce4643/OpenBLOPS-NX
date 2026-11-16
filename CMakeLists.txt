@@ -42,9 +42,14 @@ target_sources(KisakBlack PRIVATE
     "${SRC_DIR}/openblops_directory/directory_update.cpp"
 )
 # Default bo1_directory endpoint compiled into the game (numeric IPv4:UDP-port).
-# Empty in the published source; set it per build tree, e.g.
-# -DOPENBLOPS_DIRECTORY_DEFAULT=203.0.113.1:3075, so no address is committed.
+# Empty in the published source, so no address is committed. Set it in the
+# git-ignored openblops.local.cmake next to this file, which every build tree
+# (PC and Switch, SP and MP) reads:
+#   set(OPENBLOPS_DIRECTORY_DEFAULT "203.0.113.1:3075")
+# or per build tree with -DOPENBLOPS_DIRECTORY_DEFAULT=203.0.113.1:3075. The
+# local file wins over the build tree's value.
 set(OPENBLOPS_DIRECTORY_DEFAULT "" CACHE STRING "Default bo1_directory endpoint (numeric IPv4:UDP-port)")
+include("${CMAKE_CURRENT_SOURCE_DIR}/openblops.local.cmake" OPTIONAL)
 if(OPENBLOPS_DIRECTORY_DEFAULT)
     set_property(SOURCE "${SRC_DIR}/openblops_directory/directory_engine.cpp" APPEND PROPERTY
         COMPILE_DEFINITIONS "BO1_DIRECTORY_DEFAULT=\"${OPENBLOPS_DIRECTORY_DEFAULT}\"")
