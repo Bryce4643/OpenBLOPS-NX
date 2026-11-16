@@ -301,6 +301,21 @@ bool AtMainMenu()
     if (com_sv_running->current.enabled && !Com_IsMenuLevel(nullptr)) return false;   // in a match
     return CL_GetLocalClientConnectionState(0) <= CA_DISCONNECTED || Com_IsMenuLevel(nullptr);
 }
+
+// Where the popup is offered at start. SP opens on its intro video and only
+// then loads the front end, the map "frontend", whose load resets the menus:
+// a popup opened during the video vanished with it and left the menus in a
+// bad state. So SP waits for that level to be up and running; MP has its main
+// menu straight away.
+bool ReadyToOffer()
+{
+#ifdef KISAK_SP
+    return cls.uiStarted && com_sv_running && com_sv_running->current.enabled && Com_IsMenuLevel(nullptr)
+        && CL_GetLocalClientConnectionState(0) == CA_ACTIVE;
+#else
+    return AtMainMenu();
+#endif
+}
 } // namespace
 
 void Directory_UpdateFrame()
@@ -318,7 +333,10 @@ void Directory_UpdateFrame()
     }
     if (!cls.uiStarted) return;
     const int now = Sys_Milliseconds();
-    if (!s_uiSince) s_uiSince = now;
+    // How long the place to offer it has been up: restarts whenever it is not.
+    const bool ready = ReadyToOffer();
+    if (!ready) s_uiSince = 0;
+    else if (!s_uiSince) s_uiSince = now;
     auto *ui = UI_GetInfo(0);
     if (!ui) return;
     UiContext *dc = &ui->uiDC;
@@ -333,8 +351,9 @@ void Directory_UpdateFrame()
             Cbuf_AddText(0, "quit\n");
         }
     }
-    // Offer it once, over the main menu (not over a loading screen or a match).
-    if (!s_shown && info.phase == NxUpdatePhase::Available && AtMainMenu() && now - s_uiSince > 500 && Build(dc))
+    // Offer it once, over the main menu (not over the intro video, a loading
+    // screen or a match).
+    if (!s_shown && info.phase == NxUpdatePhase::Available && ready && now - s_uiSince > 1500 && Build(dc))
     {
         s_shown = true;
         Refresh();
