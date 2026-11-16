@@ -28,6 +28,7 @@
 #include <qcommon/com_clients.h>
 #include <client_mp/cl_cgame_mp.h>
 #include <client/cl_keys.h>
+#include <client/cl_main.h>
 #include <ui_mp/ui_feeders_mp.h>
 #include <win32/win_gamerprofile.h>
 #include <win32/win_gamepad.h>
@@ -4343,6 +4344,45 @@ static void UI_NX_AddAimAssistOption(menuDef_t *menu);
 #ifdef KISAK_NX
 static void UI_NX_AddFrameRateOption(menuDef_t *menu);
 #endif
+#ifdef KISAK_SP
+static bool UI_SP_IsStringConstant(const expressionRpn *rpn, const char *string)
+{
+    return rpn->type == 0 && rpn->data.constant.dataType == VAL_STRING && rpn->data.constant.internals.string
+        && !I_stricmp(rpn->data.constant.internals.string, string);
+}
+
+// main_sp's RESUME GAME items (the row, its highlight backing and its
+// loc_language 9 copy) end their 'visible when' with
+//   ... && (dvarbool("sv_saveGameAvailable") || dvarbool("sv_saveGameNotReadable")) && isProfileSignedIn()
+// The checkpoint save and profile sign-in those stand for do not exist here,
+// so the tail is cut to
+//   ... && dvarbool("sv_saveGameAvailable")
+// and sv_saveGameAvailable is the saved campaign progress (mis_01 > 0, set by
+// CL_UpdateCampaignResume_SP as the menu opens). The expressions are the
+// loaded menu's own, so this runs on every open; once cut they no longer match.
+static void UI_SP_SimplifyResumeVisibility(menuDef_t *menu)
+{
+    for (int i = 0; i < menu->itemCount; ++i)
+    {
+        itemDef_s *item = menu->items[i];
+        if (!item || !item->visibleExp.rpn)
+            continue;
+        ExpressionStatement *exp = &item->visibleExp;
+        for (int k = 0; k + 8 < exp->numRpn; ++k)
+        {
+            expressionRpn *rpn = &exp->rpn[k];
+            // "sv_saveGameAvailable" dvarbool "sv_saveGameNotReadable" dvarbool || isProfileSignedIn && && <end>
+            if (!UI_SP_IsStringConstant(&rpn[0], "sv_saveGameAvailable")
+                || !UI_SP_IsStringConstant(&rpn[2], "sv_saveGameNotReadable") || rpn[8].type != 3)
+                continue;
+            rpn[2] = rpn[7];   // && with the row's own condition
+            rpn[3] = rpn[8];   // end
+            exp->numRpn = k + 4;
+            break;
+        }
+    }
+}
+#endif
 void __cdecl Menus_Open(int localClientNum, UiContext *dc, menuDef_t *menu)
 {
     // MP: common_mp carries its own copies of the options menus, and loading it
@@ -4355,6 +4395,13 @@ void __cdecl Menus_Open(int localClientNum, UiContext *dc, menuDef_t *menu)
 #endif
 #ifdef KISAK_EXPERIMENTAL_SPLITSCREEN
     UI_SplitScreenMenuOpening(localClientNum, dc, menu);
+#endif
+#ifdef KISAK_SP
+    if (!localClientNum && menu && menu->window.name && !I_stricmp(menu->window.name, "main_sp"))
+    {
+        CL_UpdateCampaignResume_SP();   // native RESUME GAME from the saved campaign progress
+        UI_SP_SimplifyResumeVisibility(menu);
+    }
 #endif
     Directory_MenuOpening(localClientNum, dc, menu);
 #ifdef KISAK_MP
