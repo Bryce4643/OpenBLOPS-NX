@@ -39,6 +39,9 @@ const char *Directory_UpdateGateMenu(const char *name);
 bool Directory_UpdateOpenGate();
 bool Directory_UpdateMenuEvent(int localClientNum, UiContext *dc, itemDef_s *item, const char *event);
 bool Directory_UpdateControllerKey(int localClientNum, UiContext *dc, menuDef_t *menu, int key);
+// A front end menu level message (Cmd_MenuLevelMessage_f): SP offers the
+// update popup once the TV room is up.
+void Directory_FrontendMenuMessage(const char *state, const char *item);
 #endif
 #else
 inline void Directory_MenuOpening(int, UiContext *, menuDef_t *)

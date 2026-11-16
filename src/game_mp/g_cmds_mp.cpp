@@ -22,6 +22,7 @@
 #include <game/actor_fields.h>
 #ifdef KISAK_SP
 #include "g_scr_main_mp.h"               // g_scr_data.menumessage, for Cmd_MenuLevelMessage_f
+#include <openblops_directory/directory_engine.h>
 #endif
 
 int __cdecl CheatsOk(gentity_s *ent)
@@ -1409,6 +1410,9 @@ void __cdecl Cmd_MenuLevelMessage_f()
     SV_Cmd_ArgvBuffer(1, szState, 1024);
     SV_Cmd_ArgvBuffer(2, szItem, 1024);
     Com_Printf(15, "SP menu level message: state '%s' item '%s'\n", szState, szItem);
+#if defined(KISAK_NX) && defined(OPENBLOPS_NO_STEAM_AUTH)
+    Directory_FrontendMenuMessage(szState, szItem);
+#endif
     Scr_AddString(szItem, SCRIPTINSTANCE_SERVER);
     Scr_AddString(szState, SCRIPTINSTANCE_SERVER);
     t = Scr_ExecThread(SCRIPTINSTANCE_SERVER, g_scr_data.menumessage, 2);
