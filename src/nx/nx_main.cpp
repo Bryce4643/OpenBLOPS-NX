@@ -802,6 +802,19 @@ static void nxStallCaptureMain()
         }
 }
 
+// A stuck main loop never reads HOME's close request, and the system then
+// kills the title as a crash.
+static bool nxStallExitRequested()
+{
+    u32 message = 0;
+    while (R_SUCCEEDED(appletGetMessage(&message))) {
+        if (message == AppletMessage_ExitRequest)
+            return true;
+        appletProcessMessage(message);
+    }
+    return false;
+}
+
 static void nxStallThread(void *)
 {
     u64 lastBeat = s_mainHeartbeat;
@@ -826,6 +839,11 @@ static void nxStallThread(void *)
             continue;
         }
         ++stalledFor;
+        if (stalledFor >= limit && nxStallExitRequested()) {
+            appletUnlockExit();
+            svcSleepThread(3000000000ull);
+            svcExitProcess();
+        }
         if (!nextReport)
             nextReport = limit;
         if (stalledFor < nextReport)
