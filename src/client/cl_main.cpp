@@ -169,6 +169,15 @@ void __cdecl CL_DrawFramedPicPhysical(
 }
 
 cmd_function_s CL_UpdateGamerProfile_VAR;
+// The front end's main menu runs "select_save_device" as it opens, and the
+// save device popups "force_select_save_device": the console's storage device
+// picker. There is no device to pick here, so they do nothing (they used to
+// print "Unknown command").
+cmd_function_s CL_SelectSaveDevice_VAR;
+cmd_function_s CL_ForceSelectSaveDevice_VAR;
+static void __cdecl CL_SelectSaveDevice_f()
+{
+}
 cmd_function_s CL_CommitDvarToProfiles_VAR;
 cmd_function_s CL_UpdateDvarsFromProfile_VAR;
 cmd_function_s CL_UpdateProfileFromStats_VAR;
@@ -232,6 +241,8 @@ void __cdecl CL_RegisterCommands()
     Cmd_AddCommandInternal("loadgame_continue", CL_LoadGameContinue_SP, &CL_LoadGameContinue_VAR);
 #endif
     Cmd_AddCommandInternal("updategamerprofile", CL_UpdateGamerProfile, &CL_UpdateGamerProfile_VAR);
+    Cmd_AddCommandInternal("select_save_device", CL_SelectSaveDevice_f, &CL_SelectSaveDevice_VAR);
+    Cmd_AddCommandInternal("force_select_save_device", CL_SelectSaveDevice_f, &CL_ForceSelectSaveDevice_VAR);
     Cmd_AddCommandInternal("commitdvartoprofiles", CL_CommitDvarToProfiles, &CL_CommitDvarToProfiles_VAR);
     Cmd_AddCommandInternal("updatedvarsfromprofile", CL_UpdateDvarsFromProfile, &CL_UpdateDvarsFromProfile_VAR);
     Cmd_AddCommandInternal("updateprofilefromstats", CL_UpdateProfileFromStats, &CL_UpdateProfileFromStats_VAR);
