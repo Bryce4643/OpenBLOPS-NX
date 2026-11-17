@@ -1054,6 +1054,7 @@ int __stdcall WinMain(HINSTANCE__ *hInstance, HINSTANCE__ *hPrevInstance, char *
     PMem_Init();
     track_init();
     Win_InitLocalization();
+    Win_PickInstalledLanguage();
     if ( !I_strnicmp(lpCmdLine, "allowdupe", 9) && lpCmdLine[9] <= 32
         || (v5 = strstr(lpCmdLine, "g_connectpaths 3"), v5)
         || (Sys_GetSemaphoreFileName(), Sys_CheckCrashOrRerun()) )

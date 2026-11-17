@@ -2266,6 +2266,7 @@ void __cdecl Com_Init_Try_Block_Function(char *commandLine)
     R_StreamSetInitData(Com_CalculateStreamBuffer());
     com_recommendedSet = _Dvar_RegisterBool("com_recommendedSet", 0, 1u, "Use recommended settings");
     Com_CheckSetRecommended(0);
+    SEH_ApplyInstalledLanguage();
 #ifdef KISAK_NX
     Com_NX_ApplySettingsRevisions();
 #endif
