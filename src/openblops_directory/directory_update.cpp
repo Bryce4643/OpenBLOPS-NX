@@ -353,9 +353,15 @@ void Directory_UpdateFrame()
         s_checkDvar = _Dvar_RegisterBool("nx_update_check", true, 1, "Check GitHub for a new OpenBLOPS-NX release at start");
     NxUpdateInfo info;
     NX_UpdateGetInfo(info);
-    // Normally running already: main() starts the check at launch, so it is
-    // done by the time the menus are up. This covers a launch that skipped it.
-    if (!s_checkStarted && info.phase == NxUpdatePhase::Idle && s_checkDvar->current.enabled)
+    // MP: normally running already, main() starts the check at launch so it
+    // is done by the time the menus are up; this covers a launch that skipped
+    // it. SP starts it here once the TV room is up (see nx_main.cpp).
+#ifdef KISAK_SP
+    const bool mayStartCheck = ReadyToOffer();
+#else
+    const bool mayStartCheck = true;
+#endif
+    if (!s_checkStarted && mayStartCheck && info.phase == NxUpdatePhase::Idle && s_checkDvar->current.enabled)
     {
         s_checkStarted = true;
         NX_UpdateStartCheck();
