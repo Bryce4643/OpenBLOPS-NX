@@ -996,16 +996,11 @@ int main(int argc, char **argv)
     nxAppendCmdlineFile(cmdline, sizeof(cmdline));
     printf("command line: %s\n", cmdline);
     nx_set_command_line(cmdline);
-    // MP: the update check runs while the game loads, so its popup can show
-    // as soon as the main menu does (MP takes several seconds to get there).
-    // SP starts it from the TV room instead (Directory_UpdateFrame): run
-    // during the intro video and the front end's load, it left the front end
-    // on a black screen at times. "+set nx_update_check 0" in cmdline.txt
-    // turns it off.
-#ifndef KISAK_SP
+    // The update check runs while the game loads, so its popup can show as
+    // soon as the main menu does (MP takes several seconds to get there).
+    // "+set nx_update_check 0" in cmdline.txt turns it off.
     if (!strstr(cmdline, "nx_update_check 0") && !strstr(cmdline, "nx_update_check \"0\""))
         NX_UpdateStartCheck();
-#endif
 
     // WinMain runs the engine and never returns (infinite Com_Frame loop).
     int rc = WinMain((HINSTANCE)1, NULL, cmdline, 1);
