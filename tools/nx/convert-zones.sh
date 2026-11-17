@@ -2,7 +2,9 @@
 # Convert the zones the port uses into <game>/kbz/ and validate each with
 # kbzdump: the multiplayer set (all 26 maps), then the SP / Zombies set (code_*, common,
 # patch, frontend, terminal, common_zombie, zombie_theater, zombie_pentagon). SP zones have no _mp
-# suffix, so both share kbz/. Run from the msys2 UCRT64 shell after
+# suffix, so both share kbz/. Localized zones are converted for every
+# language folder the install has (zone/English, zone/Spanish, ...). Run from
+# the msys2 UCRT64 shell after
 # tools/ffconv/build.sh:
 #   GAME=/f/pluto_t5_full_game sh tools/nx/convert-zones.sh
 # ALL=1 converts every zone of the install instead, campaign missions
@@ -78,6 +80,37 @@ else
     Common/zombie_theater    Common/zombie_theater_patch English/en_zombie_theater \
     Common/zombie_pentagon   Common/zombie_pentagon_patch English/en_zombie_pentagon"
 fi
+
+# The default set above names the English localized zones. Each of them is
+# converted for every language the install has instead: zone/<Language>/
+# holds that language's zones, prefixed with its abbreviation (the game's
+# language table, src/stringed/stringed_hooks.cpp; Austrian uses German's).
+lang_prefix() {
+    case $(echo "$1" | tr 'A-Z' 'a-z') in
+        english) echo en_ ;;   french) echo fr_ ;;   frenchcan) echo fc_ ;;
+        german|austrian) echo ge_ ;;   italian) echo it_ ;;   spanish) echo sp_ ;;
+        british) echo br_ ;;   russian) echo ru_ ;;   polish) echo po_ ;;
+        korean) echo ko_ ;;   japanese) echo ja_ ;;   czech) echo cz_ ;;
+        fulljap) echo fj_ ;;
+    esac
+}
+if [ -z "$ALL" ]; then
+    localized=
+    for z in $zones; do
+        case $z in
+            English/en_*)
+                base=${z#English/en_}
+                for dir in "$GAME"/zone/*/; do
+                    lang=$(basename "$dir")
+                    prefix=$(lang_prefix "$lang")
+                    [ -n "$prefix" ] && [ -f "$dir$prefix$base.ff" ] && localized="$localized $lang/$prefix$base"
+                done ;;
+            *) localized="$localized $z" ;;
+        esac
+    done
+    zones=$localized
+fi
+
 for z in $zones; do
     convert_zone "$z"
 done
