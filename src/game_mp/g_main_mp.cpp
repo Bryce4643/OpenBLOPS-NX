@@ -1494,8 +1494,8 @@ void G_RegisterDvars()
     _Dvar_RegisterFloat("ai_turnAnimAngleThreshold", 50.0f, 0.0f, 180.0f, 0x4080u, "");
     _Dvar_RegisterFloat("ai_runAnimUpdateFrequency", 0.05f, 0.05f, 0.2f, 0x4080u, "");
 #endif
-#ifdef KISAK_NX
-    // Switch: fewer AI corpses kept to draw and animate.
+#if defined(KISAK_NX) && !defined(KISAK_NX2)
+    // Switch 1: fewer AI corpses kept to draw and animate.
     enum { AI_CORPSE_COUNT_DEFAULT = 4 };
 #else
     enum { AI_CORPSE_COUNT_DEFAULT = 5 };

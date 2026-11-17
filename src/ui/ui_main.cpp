@@ -3462,8 +3462,8 @@ void UI_RegisterDvars()
     ui_customClassName = _Dvar_RegisterString("ui_customClassName", (char *)"", 0, "Custom Class name");
     g_allowvote = _Dvar_RegisterBool("g_allowvote", 1, 1u, 0);
     cg_brass = _Dvar_RegisterBool("cg_brass", 1, 1u, 0);
-#ifdef KISAK_NX
-    fx_marks = _Dvar_RegisterBool("fx_marks", 0, 1u, 0);   // Switch default: off, as fx_dvars.cpp
+#if defined(KISAK_NX) && !defined(KISAK_NX2)
+    fx_marks = _Dvar_RegisterBool("fx_marks", 0, 1u, 0);   // Switch 1 default: off, as fx_dvars.cpp
 #else
     fx_marks = _Dvar_RegisterBool("fx_marks", 1, 1u, 0);
 #endif

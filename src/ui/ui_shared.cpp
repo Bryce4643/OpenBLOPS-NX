@@ -4342,6 +4342,7 @@ void __cdecl Item_TextField_BeginEdit(int localClientNum, int contextIndex, item
 
 static void UI_NX_AddAimAssistOption(menuDef_t *menu);
 #ifdef KISAK_NX
+static void UI_NX_RemoveDisplayOptions(menuDef_t *menu);
 static void UI_NX_AddFrameRateOption(menuDef_t *menu);
 #endif
 #ifdef KISAK_SP
@@ -4392,6 +4393,7 @@ void __cdecl Menus_Open(int localClientNum, UiContext *dc, menuDef_t *menu)
     UI_NX_AddAimAssistOption(menu);
 #ifdef KISAK_NX
     UI_NX_AddFrameRateOption(menu);
+    UI_NX_RemoveDisplayOptions(menu);
 #endif
 #ifdef KISAK_EXPERIMENTAL_SPLITSCREEN
     UI_SplitScreenMenuOpening(localClientNum, dc, menu);
@@ -11770,6 +11772,76 @@ static const FrameRateOptionText &UI_NX_GetFrameRateOptionText()
     return translations[0];
 }
 
+// Removes the options row of a dvar: the items on its line from its column
+// rightwards (layers and in-game copies) and any item bound to the dvar. The
+// rows below move up. Items with rect expressions or no size are left alone.
+static bool UI_NX_IsRowItem(const itemDef_s *item, float column)
+{
+    return item && !item->rectExpData && item->window.rect.w > 0.0f && item->window.rect.h > 0.0f
+        && item->window.rect.x >= column;
+}
+
+static void UI_NX_RemoveOptionRow(menuDef_t *menu, const char *dvar)
+{
+    const itemDef_s *choice = nullptr;
+    for ( int i = 0; i < menu->itemCount && !choice; ++i )
+    {
+        const itemDef_s *item = menu->items[i];
+        if ( item && item->dvar && item->window.name && item->window.name[0] && !I_stricmp(item->dvar, dvar) )
+            choice = item;
+    }
+    if ( !choice )
+        return;
+    const rectDef_s row = choice->window.rect;
+    float rowHeight = 0.0f, lastY = row.y;
+    for ( int i = 0; i < menu->itemCount; ++i )
+    {
+        const itemDef_s *item = menu->items[i];
+        if ( !item || !item->dvar || item->window.rect.x != row.x || !I_stricmp(item->dvar, dvar) )
+            continue;
+        const float dy = item->window.rect.y - row.y;
+        if ( dy > 0.0f && (rowHeight == 0.0f || dy < rowHeight) )
+            rowHeight = dy;
+        if ( item->window.rect.y > lastY )
+            lastY = item->window.rect.y;
+    }
+    const float band = (rowHeight > 0.0f ? rowHeight : row.h) * 0.5f;
+    int kept = 0;
+    for ( int i = 0; i < menu->itemCount; ++i )
+    {
+        itemDef_s *item = menu->items[i];
+        const float dy = item ? item->window.rect.y - row.y : 0.0f;
+        const bool onRow = item && ((item->dvar && !I_stricmp(item->dvar, dvar))
+            || (UI_NX_IsRowItem(item, row.x) && dy > -band && dy < band));
+        if ( !onRow )
+            menu->items[kept++] = item;
+    }
+    menu->itemCount = kept;
+    if ( rowHeight <= 0.0f )
+        return;
+    for ( int i = 0; i < menu->itemCount; ++i )
+    {
+        itemDef_s *item = menu->items[i];
+        if ( UI_NX_IsRowItem(item, row.x) && item->window.rect.y > row.y && item->window.rect.y <= lastY + band )
+            UI_NX_MoveItem(item, -rowHeight);
+    }
+}
+
+// Full screen does nothing on the Switch; on Switch 2 the display sets the
+// resolution and refresh rate, so video mode and v-sync go too. Runs after
+// UI_NX_AddFrameRateOption, which places its row under v-sync's.
+static void UI_NX_RemoveDisplayOptions(menuDef_t *menu)
+{
+    if ( !menu || !menu->window.name || I_stricmp(menu->window.name, "options_graphics") )
+        return;
+    UI_NX_RemoveOptionRow(menu, "ui_r_fullscreen");
+#ifdef KISAK_NX2
+    UI_NX_RemoveOptionRow(menu, "ui_r_mode");
+    UI_NX_RemoveOptionRow(menu, "r_vsync");
+    UI_NX_RemoveOptionRow(menu, "ui_r_vsync");
+#endif
+}
+
 static void UI_NX_AddFrameRateOption(menuDef_t *menu)
 {
     if ( !menu || !menu->window.name || I_stricmp(menu->window.name, "options_graphics")
@@ -11821,6 +11893,7 @@ void __cdecl UI_AddMenu(int localClientNum, UiContext *dc, menuDef_t *menu, int 
     UI_NX_AddAimAssistOption(menu);
 #ifdef KISAK_NX
     UI_NX_AddFrameRateOption(menu);
+    UI_NX_RemoveDisplayOptions(menu);
 #endif
     for ( i = 0; i < dc->menuCount; ++i )
     {

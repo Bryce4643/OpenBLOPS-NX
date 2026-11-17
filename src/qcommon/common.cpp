@@ -4,6 +4,7 @@
 #include <switch.h>
 #include <nx/nx_load_boost.h>
 #include <nx/nx_stall_scope.h>
+#include <nx/nx_display.h>
 #endif
 #include <live/live_storage.h>
 
@@ -169,7 +170,12 @@ static const dvar_t *nx_fpsLimit;
 int Com_GetFrameRateLimit()
 {
     const int limit = nx_fpsLimit->current.integer;
+#ifdef KISAK_NX2
+    // Switch 2: with no limit chosen, the display's refresh rate (60 or 120 Hz).
+    return limit < 0 ? NX_DisplayRefreshRate() : limit;
+#else
     return limit < 0 ? com_maxfps->current.integer : limit;
+#endif
 }
 #endif
 const dvar_t *arcademode;
@@ -1383,6 +1389,22 @@ void __cdecl Com_SetRecommended(int localClientNum, int restart)
     // which picks Extra from the Switch's memory; use High instead. Runs on
     // first start and from the options menu's "set recommended"; a choice made
     // in the options afterwards is saved in config.cfg and stands.
+#ifdef KISAK_NX2
+    // Switch 2: the recommended PC settings with High textures, 4x anisotropic
+    // filtering (r_texFilterAnisoMax only caps it) and a depth prepass, without
+    // MSAA, depth of field or v-sync.
+    Dvar_SetIntByName("r_aaSamples", 1);
+    Dvar_SetIntByName("r_texFilterAnisoMin", 4);
+    Dvar_SetBoolByName("r_vsync", false);
+    Dvar_SetBoolByName("r_dof_enable", false);
+    Dvar_SetBoolByName("r_depthPrepass", true);
+    Dvar_SetBoolByName("r_picmip_manual", true);
+    Dvar_SetIntByName("r_picmip", 1);
+    Dvar_SetIntByName("r_picmip_bump", 1);
+    Dvar_SetIntByName("r_picmip_spec", 1);
+    Com_Printf(16, "[nx] Switch 2 defaults over the recommended settings: anti-aliasing off, 4x anisotropic filtering,"
+                   " depth of field off, depth prepass on, v-sync off, textures high\n");
+#else
     Dvar_SetIntByName("r_aaSamples", 1);
     Dvar_SetBoolByName("r_vsync", false);
     Dvar_SetBoolByName("sm_enable", false);
@@ -1393,6 +1415,7 @@ void __cdecl Com_SetRecommended(int localClientNum, int restart)
     Dvar_SetIntByName("r_picmip_spec", 1);
     Com_Printf(16, "[nx] Switch defaults over the recommended settings: anti-aliasing off, v-sync off, shadows off,"
                    " bullet impacts off, textures high\n");
+#endif
 #endif
     checksum = Com_ConfigureChecksum(csv, filesize);
     FS_FreeFile(csv);
@@ -1712,6 +1735,7 @@ static void Com_NX_ApplySettingsRevisions()
         // options toggle; the counter now follows cg_drawFPS as in retail.
         Dvar_SetIntByName("cg_drawFPS", 0);
     }
+#ifndef KISAK_NX2
     if ( appliedRevision < 3 )
     {
         // The FPS LIMIT option (nx_fpsLimit) defaults to 60 FPS. It used to
@@ -1720,6 +1744,7 @@ static void Com_NX_ApplySettingsRevisions()
         if ( Dvar_GetInt("nx_fpsLimit") < 0 )
             Dvar_SetIntByName("nx_fpsLimit", 60);
     }
+#endif
 
     Dvar_SetInt((dvar_s *)nx_settingsRevision, latestRevision);
     Com_Printf(16, "[nx] Updated the saved settings to Switch defaults revision %i\n", latestRevision);
@@ -2622,7 +2647,12 @@ void Com_InitDvars()
     com_maxfps = _Dvar_RegisterInt("com_maxfps", 85, 0, 1000, 1u, "Cap frames per second");
 #endif
 #ifdef KISAK_NX
+#ifdef KISAK_NX2
+    // Switch 2: -1 follows the screen refresh rate (src/nx/nx_display.cpp).
+    nx_fpsLimit = _Dvar_RegisterInt("nx_fpsLimit", -1, -1, 1000, 1u, "Switch frame rate limit (-1 follows the refresh rate, 0 is unlimited)");
+#else
     nx_fpsLimit = _Dvar_RegisterInt("nx_fpsLimit", 60, -1, 1000, 1u, "Switch frame rate limit (-1 uses com_maxfps, 0 is unlimited)");
+#endif
     nx_splog = _Dvar_RegisterBool("nx_splog", 0, 0, "Log the SP bring-up traces (lines starting \"SP \")");
 #endif
     arcademode = _Dvar_RegisterBool("arcademode", 0, 0x100u, "Current game is an arcade mode game");

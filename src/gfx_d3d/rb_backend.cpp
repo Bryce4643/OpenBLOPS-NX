@@ -786,6 +786,12 @@ void R_ResolveIntZ_PC()
 
     iassert(dx.supportsIntZ);
 
+#ifdef NX_DXVK
+    // The floatz texture is the scene's depth buffer (r_rendertarget.cpp).
+    if (g_nxIntZDepthBuffer)
+        return;
+#endif
+
 #ifdef KISAK_NVAPI_INTZ
     if (dx.nvInitialized)
     {

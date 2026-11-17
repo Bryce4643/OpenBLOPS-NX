@@ -87,6 +87,12 @@ void __cdecl Sys_DetectVideoCard(int descLimit, char *description)
         __debugbreak();
     }
     strcpy(description, "Unknown video card");
+#ifdef KISAK_NX2
+    // A Direct3D object released here closes the GPU before the renderer opens
+    // it again, which the Switch 2 driver does not survive.
+    strcpy(description, "Switch 2 GPU");
+    return;
+#endif
     d3d9 = Direct3DCreate9(0x20u);
     if ( d3d9 )
     {

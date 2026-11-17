@@ -5,6 +5,12 @@
 # (i.e. configured with $DEVKITPRO/cmake/Switch.cmake as toolchain).
 # The KisakBlack target already exists with the full Windows source list;
 # here we swap platform sources and apply GCC/AArch64 options.
+#
+# Switch 2 builds use the same file: configured with the ounce-devkit's
+# $DEVKITPRO/libounce/cmake/Switch2.cmake (tools/nx/build-switch2.sh), which
+# also sets NINTENDO_SWITCH2. libounce stands in for libnx and the Switch 2
+# Mesa SDK for the Switch 1 one under DXVK; KISAK_NX2 marks the code that
+# differs.
 # ======================================================================
 
 # 1300+ object files exceed the Windows command-line length limit at link
@@ -48,6 +54,13 @@ if(NX_DXVK)
     list(REMOVE_ITEM NX_SOURCES "${NX_DIR}/nx_d3d9_null.cpp"
         "${NX_DIR}/nx_d3d9_shader.cpp" "${NX_DIR}/nx_gl_mesa20.cpp")
 endif()
+if(NINTENDO_SWITCH2)
+    if(NOT NX_DXVK)
+        message(FATAL_ERROR "Switch 2 renders only through DXVK on Mesa NVK: NX_DXVK must be ON")
+    endif()
+    # SaltyNX is an Atmosphere sysmodule (nx_saltynx.h has the Switch 2 stand-ins).
+    list(REMOVE_ITEM NX_SOURCES "${NX_DIR}/nx_saltynx.cpp")
+endif()
 get_target_property(KB_SOURCES ${BIN_NAME} SOURCES)
 
 # Sources that must not build on Switch (replaced by src/nx/ equivalents).
@@ -86,18 +99,25 @@ endif()
 # place of KISAK_MP. Use its own build directory:
 #   cmake -S . -B build-nx-sp -DNX_SP=ON
 option(NX_SP "Build the single-player / Zombies executable (KISAK_SP)" OFF)
-# NX_NRO_NAME is both the .nro file name and the title the homebrew menu shows.
-# No icon is given, so the NROs carry libnx's default one.
+# NX_NRO_NAME is both the .nro file name and the title the homebrew menu shows
+# (src/nx/nx_install.h has the same names). The icon is NX_ICON (NRO packaging
+# below).
+if(NINTENDO_SWITCH2)
+    set(NX_NRO_BASE "OpenBLOPS-NX2")
+else()
+    set(NX_NRO_BASE "OpenBLOPS-NX")
+endif()
 if(NX_SP)
     set(NX_GAME_MODE KISAK_SP)
-    set(NX_NRO_NAME "OpenBLOPS-NX")
+    set(NX_NRO_NAME "${NX_NRO_BASE}")
 else()
     set(NX_GAME_MODE KISAK_MP)
-    set(NX_NRO_NAME "OpenBLOPS-NX-MP")
+    set(NX_NRO_NAME "${NX_NRO_BASE}-MP")
 endif()
 target_compile_definitions(${BIN_NAME} PUBLIC
     ${NX_GAME_MODE}
     KISAK_NX
+    $<$<BOOL:${NINTENDO_SWITCH2}>:KISAK_NX2>
     $<$<BOOL:${NX_DXVK}>:NX_DXVK>
     # From OpenBLOPS: the online checks in the menu expressions report success,
     # so Play and Combat Training open with no live layer. See
@@ -214,14 +234,19 @@ target_link_options(${BIN_NAME} PRIVATE
     -Wl,--wrap=fopen
     -Wl,--wrap=remove
     -Wl,--wrap=rename
-    # heap growth logging (nx_wincompat.cpp, __wrap__sbrk_r)
-    -Wl,--wrap=_sbrk_r
-    # guard pages after large blocks (nx_wincompat.cpp, __wrap_malloc)
-    -Wl,--wrap=malloc
-    -Wl,--wrap=free
-    -Wl,--wrap=calloc
-    -Wl,--wrap=realloc
 )
+# Switch 1 only (nx_wincompat.cpp): heap growth logging (__wrap__sbrk_r) and
+# guard pages after large blocks (__wrap_malloc). Switch 2's allocator
+# (mimalloc) never calls sbrk and keeps no block header.
+if(NOT NINTENDO_SWITCH2)
+    target_link_options(${BIN_NAME} PRIVATE
+        -Wl,--wrap=_sbrk_r
+        -Wl,--wrap=malloc
+        -Wl,--wrap=free
+        -Wl,--wrap=calloc
+        -Wl,--wrap=realloc
+    )
+endif()
 
 # ----- Renderer -----
 set(NX_PORTLIBS "${DEVKITPRO}/portlibs/switch")
@@ -231,8 +256,6 @@ endif()
 target_include_directories(${BIN_NAME} PUBLIC "${NX_PORTLIBS}/include")
 target_link_libraries(${BIN_NAME} PRIVATE "${NX_PORTLIBS}/lib/libzstd.a")
 if(NX_DXVK)
-    set(NX_MESA_SDK "${CMAKE_SOURCE_DIR}/build-nx/deps/mesa-26.2.7/opt/devkitpro/portlibs/switch"
-        CACHE PATH "Unified Horizon Mesa 26.2.7 SDK")
     set(NX_DXVK_PREBUILT_DIR "" CACHE PATH "Optional native DXVK build shared by SP and MP")
     if(NX_DXVK_PREBUILT_DIR)
         add_library(nx_dxvk_native STATIC IMPORTED)
@@ -243,11 +266,23 @@ if(NX_DXVK)
     else()
         include("${CMAKE_CURRENT_LIST_DIR}/dxvk-sarek.cmake")
     endif()
+    # Mesa NVK from each console's Horizon Mesa 26.2.7 SDK in build-nx/deps. The
+    # Switch 2 one also needs zstd, expat and zlib from the Switch 1 portlibs.
+    if(NINTENDO_SWITCH2)
+        set(NX_MESA_SDK "${CMAKE_SOURCE_DIR}/build-nx/deps/mesa-26.2.7-switch2/opt/devkitpro/portlibs/switch2"
+            CACHE PATH "Switch 2 Horizon Mesa 26.2.7 SDK")
+    else()
+        set(NX_MESA_SDK "${CMAKE_SOURCE_DIR}/build-nx/deps/mesa-26.2.7/opt/devkitpro/portlibs/switch"
+            CACHE PATH "Unified Horizon Mesa 26.2.7 SDK")
+    endif()
     find_package(Vulkan REQUIRED CONFIG PATHS "${NX_MESA_SDK}/lib/cmake/Vulkan" NO_DEFAULT_PATH)
     target_link_libraries(${BIN_NAME} PRIVATE nx_d3d9_bridge Vulkan::Vulkan)
+    if(NINTENDO_SWITCH2)
+        target_link_directories(${BIN_NAME} PRIVATE "${NX_MESA_SDK}/lib" "${NX_PORTLIBS}/lib")
+    endif()
+    message(STATUS "Renderer: native ARM64 DXVK (Sarek) -> NVK ${Vulkan_VERSION}")
     target_link_options(${BIN_NAME} PRIVATE -Wl,--wrap=pthread_create -Wl,-u,__wrap_pthread_create)
     target_link_options(${BIN_NAME} PRIVATE "-Wl,-Map,${CMAKE_CURRENT_BINARY_DIR}/${NX_NRO_NAME}.map")
-    message(STATUS "Renderer: native ARM64 DXVK (Sarek) -> NVK ${Vulkan_VERSION}")
 else()
 # ----- Mesa EGL / OpenGL -----
 # For src/nx/nx_d3d9_null.cpp's Clear and Present. Nothing else uses GL yet.
@@ -356,7 +391,18 @@ nx_generate_nacp("${NX_NRO_NAME}.nacp"
     AUTHOR  "HDErick, NaGa, TheGabr0"
     VERSION "${NX_APP_VERSION}"
 )
+# The homebrew menu's icon, a 256x256 JPEG. The repository holds none (no game
+# data goes in it); without NX_ICON the NROs carry libnx's default icon.
+set(NX_ICON "" CACHE FILEPATH "256x256 JPEG icon for the NROs (empty: libnx's default icon)")
+set(NX_NRO_ICON)
+if(NX_ICON)
+    if(NOT EXISTS "${NX_ICON}")
+        message(FATAL_ERROR "NX_ICON '${NX_ICON}' does not exist")
+    endif()
+    set(NX_NRO_ICON ICON "${NX_ICON}")
+endif()
 nx_create_nro(${BIN_NAME}
     OUTPUT  "${OPENBLOPS_NX_OUTPUT_DIR}/${NX_NRO_NAME}.nro"
     NACP    "${NX_NRO_NAME}.nacp"
+    ${NX_NRO_ICON}
 )

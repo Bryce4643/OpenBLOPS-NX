@@ -33,8 +33,8 @@ namespace {
 // the newest release. The fallback repository only when the main one cannot
 // be reached, is gone, or has no release.
 constexpr const char *Repos[] = {"HDErick/OpenBLOPS-NX", "HDErick/rqm-updater-nx"};
-constexpr char ZipName[] = "OpenBLOPS-NX.zip";
-constexpr char ZipPart[] = NX_GAME_DIR "/OpenBLOPS-NX.zip.part";
+constexpr char ZipName[] = NX_UPDATE_ZIP;
+constexpr char ZipPart[] = NX_GAME_DIR "/" NX_UPDATE_ZIP ".part";
 constexpr char SdRoot[] = "sdmc:/";
 constexpr char PendingList[] = NX_GAME_DIR "/update_pending.txt";
 constexpr size_t MaxJson = 512 * 1024;
